@@ -1,0 +1,105 @@
+// Prisma Schema for Fish Store Management System
+// Database: Supabase (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  MANAGER
+  SUPERVISOR
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
+
+model User {
+  id           String         @id @default(cuid())
+  name         String
+  email        String         @unique
+  passwordHash String
+  role         Role           @default(SUPERVISOR)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  expenses     DailyExpense[]
+
+  @@map("users")
+}
+
+model FishInventoryLog {
+  id               String   @id @default(cuid())
+  date             DateTime @default(now()) @db.Date
+  fishType         String
+  incomingWeight   Decimal  @db.Decimal(10, 2)
+  buyingPricePerKg Decimal  @db.Decimal(10, 2)
+  sellingPricePerKg Decimal @db.Decimal(10, 2)
+  wastageWeight    Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([date])
+  @@map("fish_inventory_logs")
+}
+
+model DailyExpense {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now()) @db.Date
+  category  String
+  amount    Decimal  @db.Decimal(10, 2)
+  loggedBy  String
+  user      User     @relation(fields: [loggedBy], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@map("daily_expenses")
+}
+
+model StaffAttendance {
+  id           String           @id @default(cuid())
+  date         DateTime         @default(now()) @db.Date
+  employeeName String
+  status       AttendanceStatus @default(ABSENT)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([date, employeeName])
+  @@index([date])
+  @@map("staff_attendance")
+}
+
+model StaffPayroll {
+  id           String  @id @default(cuid())
+  employeeName String  @unique
+  baseSalary   Decimal @default(0) @db.Decimal(10, 2)
+  advanceTaken Decimal @default(0) @db.Decimal(10, 2)
+  balanceOwed  Decimal @default(0) @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("staff_payroll")
+}
+
+model DailyStoreSummary {
+  id                   String   @id @default(cuid())
+  date                 DateTime @unique @db.Date
+  totalPosSales        Decimal  @default(0) @db.Decimal(12, 2)
+  calculatedExpenses   Decimal  @default(0) @db.Decimal(12, 2)
+  calculatedWastageCost Decimal @default(0) @db.Decimal(12, 2)
+  totalBuyingCost      Decimal  @default(0) @db.Decimal(12, 2)
+  netProfit            Decimal  @default(0) @db.Decimal(12, 2)
+  isSyncedWithHub      Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([date])
+  @@map("daily_store_summaries")
+}

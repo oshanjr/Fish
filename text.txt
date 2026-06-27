@@ -1,0 +1,48 @@
+# Project Context: Fish Store Management System (Spoke Module)
+You are an expert full-stack developer and UI/UX designer. Your task is to build a standalone "Fish Store Management System" tailored for a local fish retail shop in Gampaha. This application operates independently but includes an integration layer to securely sync daily financial summaries back to a Central Admin Hub via an API key.
+
+## Tech Stack
+- Framework: Next.js 14+ (App Router)
+- Language: Strict TypeScript
+- Styling: Tailwind CSS
+- UI Components: Shadcn UI, Lucide React (Icons)
+- Database ORM: Prisma (MySQL/PostgreSQL)
+
+## Role-Based Access Control (RBAC)
+Implement two local roles for store operations:
+1. MANAGER: Has full access to pricing, employee balances, daily budgets, and final financial submissions.
+2. SUPERVISOR: Restricted access. Can only do raw data entry (entering fish weights, logging wastage, marking attendance, and adding daily operational expenses). Cannot see net profit metrics or overall shop budgets.
+
+## Database Schema (Prisma)
+Design local tables optimized for daily business cycles:
+1. FishInventoryLog: id, date, fishType (string), incomingWeight (decimal), buyingPricePerKg (decimal), sellingPricePerKg (decimal), wastageWeight (decimal).
+2. DailyExpense: id, date, category (e.g., Ice, Transport, Tea), amount (decimal), loggedBy (userId).
+3. StaffAttendance: id, date, employeeName (string), status (PRESENT/ABSENT).
+4. StaffPayroll: id, employeeName (string), baseSalary (decimal), advanceTaken (decimal), balanceOwed (decimal).
+5. DailyStoreSummary: id, date, totalPosSales (decimal - entered manually from existing POS), calculatedExpenses (decimal), calculatedWastageCost (decimal), netProfit (decimal), isSyncedWithHub (boolean).
+
+## Functional Features & UI Views (Shadcn UI)
+Create a clean dashboard with a responsive sidebar containing the following modules:
+
+1. Morning Intake View (Supervisor/Manager):
+   - A form to enter daily fish supply: Fish Type, Total Weight, Buying Price, Selling Price.
+2. Daily Operations View (Supervisor/Manager):
+   - HR/Attendance Tab: Simple list checklist to mark manual attendance for staff.
+   - Expenses Tab: A clean form to quickly log cash-out items (Ice, fuel, meals) during the day.
+3. Evening Closing View (Manager Focus):
+   - Wastage Tracker: Input wastage weight for large fishes. The system calculates loss based on the buying price.
+   - POS Reconciliation: Field to input "Yesterday's/Today's Total Sales" directly from the store's physical POS terminal.
+   - Financial Summary Card: Dynamically displays: Gross Sales - (Buying Cost + Operational Expenses + Wastage Loss) = Estimated Net Profit.
+4. Hub Sync Integration Panel:
+   - A settings screen where the Manager can view sync history.
+   - A prominent "Close Day & Sync to Hub" button. Clicking this triggers an outbound fetch POST request to the central admin panel's API using the `ADMIN_HUB_API_URL` and `ADMIN_HUB_API_KEY` stored in environmental variables.
+
+## Step-by-Step Implementation Plan
+Generate the codebase in this order:
+1. Prisma Configuration: Write the schema definitions ensuring relationships between logs and daily summaries.
+2. Authentication & Middleware: Setup NextAuth/Auth.js with local credentials provider differentiating between Manager and Supervisor views.
+3. Data Entry Forms: Build the morning intake, expenses, and wastage forms with robust client-side validation (Zod).
+4. Business Logic Core: Write the utility function that computes the daily net profit, factoring in the custom wastage calculations for large fish types.
+5. Outbound Sync Service: Create the server action or API handler that reads the local day summary, packages it into the payload format expected by the central hub, attaches the API key header, and updates `isSyncedWithHub` to true upon a successful 200 OK response.
+
+Ensure all layout components are highly scannable, utilize clean Shadcn tables/cards, and include clear inline TypeScript typings to prevent build breaks.
