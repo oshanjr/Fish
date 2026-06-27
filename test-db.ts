@@ -16,7 +16,7 @@ async function testConnection(url: string, name: string) {
     const count = await prisma.user.count();
     console.log(`✅ Success! Found ${count} users.`);
   } catch (error) {
-    console.error(`❌ Failed:`, error.message);
+    console.error(`❌ Failed:`, error instanceof Error ? error.message : error);
   } finally {
     await prisma.$disconnect();
   }
