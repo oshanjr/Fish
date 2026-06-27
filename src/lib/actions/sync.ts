@@ -24,14 +24,17 @@ export async function syncToHub(summaryId: string) {
   }
 
   const payload = {
-    storeId: "fish-store-gampaha",
-    date: summary.date.toISOString().split("T")[0],
-    totalPosSales: Number(summary.totalPosSales),
-    totalBuyingCost: Number(summary.totalBuyingCost),
-    calculatedExpenses: Number(summary.calculatedExpenses),
-    calculatedWastageCost: Number(summary.calculatedWastageCost),
-    netProfit: Number(summary.netProfit),
-    syncedAt: new Date().toISOString(),
+    date: summary.date.toISOString(),
+    totalRevenue: Number(summary.totalPosSales),
+    totalExpenses: Number(summary.totalBuyingCost) + Number(summary.calculatedExpenses) + Number(summary.calculatedWastageCost),
+    metadata: {
+      totalBuyingCost: Number(summary.totalBuyingCost),
+      calculatedExpenses: Number(summary.calculatedExpenses),
+      calculatedWastageCost: Number(summary.calculatedWastageCost),
+      netProfit: Number(summary.netProfit),
+      storeId: "fish-store-gampaha",
+      syncedAt: new Date().toISOString()
+    }
   };
 
   try {
@@ -39,7 +42,7 @@ export async function syncToHub(summaryId: string) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${hubApiKey}`,
+        "x-api-key": hubApiKey,
       },
       body: JSON.stringify(payload),
     });
