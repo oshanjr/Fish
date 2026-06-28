@@ -20,7 +20,7 @@ export default auth((req: NextRequest & { auth: { user: { role: string } } | nul
     pathname === "/"
   ) {
     // If logged in and trying to access login, redirect to dashboard
-    if (session && pathname.startsWith("/login")) {
+    if (session?.user && pathname.startsWith("/login")) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     return NextResponse.next();
@@ -28,7 +28,7 @@ export default auth((req: NextRequest & { auth: { user: { role: string } } | nul
 
   // Protect dashboard routes — require authentication
   if (pathname.startsWith("/dashboard")) {
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
