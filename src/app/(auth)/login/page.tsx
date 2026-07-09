@@ -66,16 +66,16 @@ export default function LoginPage() {
                 htmlFor="email"
                 className="block text-sm font-medium text-cyan-100/80 mb-2"
               >
-                Email Address
+                Email Address or Phone Number
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-300/50" />
                 <input
                   id="email"
                   name="email"
-                  type="email"
+                  type="text"
                   required
-                  placeholder="manager@fishstore.lk"
+                  placeholder="manager@fishstore.lk or 07X XXX XXXX"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400/50 transition-all duration-200"
                 />
               </div>

@@ -111,6 +111,11 @@ export const employeeSchema = z.object({
     .max(20, "Phone must be under 20 characters")
     .optional()
     .or(z.literal("")),
+  password: z
+    .string()
+    .min(6, "Password must be at least 6 characters")
+    .optional()
+    .or(z.literal("")),
   nic: z
     .string()
     .max(20, "NIC must be under 20 characters")

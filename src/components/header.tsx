@@ -14,12 +14,14 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
     <header className="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-lg border-b border-slate-200/60 px-4 lg:px-6 flex items-center justify-between">
       {/* Left: Menu button + Page context */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={onMenuClick}
-          className="lg:hidden p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+        {user.role !== "EMPLOYEE" && (
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
         <div>
           <p className="text-xs text-slate-400 font-medium">
             {new Date().toLocaleDateString("en-LK", {
@@ -42,8 +44,8 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
             <p className="text-xs font-semibold text-slate-700 leading-tight">
               {user.name}
             </p>
-            <p className="text-[10px] text-slate-400 leading-tight">
-              {user.role === "MANAGER" ? "Manager" : "Supervisor"}
+            <p className="text-[10px] text-slate-400 leading-tight capitalize">
+              {user.role.toLowerCase()}
             </p>
           </div>
         </div>

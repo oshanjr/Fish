@@ -38,29 +38,44 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        const email = credentials.email as string;
+        const identifier = credentials.email as string; // we reuse 'email' field in NextAuth config for identifier
         const password = credentials.password as string;
 
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
+        // Determine if it's an email (Manager/Supervisor) or phone number (Employee)
+        if (identifier.includes("@")) {
+          const user = await prisma.user.findUnique({
+            where: { email: identifier },
+          });
 
-        if (!user) {
-          return null;
+          if (!user) return null;
+
+          const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+          if (!isPasswordValid) return null;
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role as UserRole,
+          };
+        } else {
+          // Employee login by phone
+          const employee = await prisma.employee.findUnique({
+            where: { phone: identifier },
+          });
+
+          if (!employee || !employee.passwordHash) return null;
+
+          const isPasswordValid = await bcrypt.compare(password, employee.passwordHash);
+          if (!isPasswordValid) return null;
+
+          return {
+            id: employee.id,
+            name: employee.name,
+            email: employee.phone || "",
+            role: "EMPLOYEE" as UserRole,
+          };
         }
-
-        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-
-        if (!isPasswordValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role as UserRole,
-        };
       },
     }),
   ],

@@ -49,6 +49,7 @@ export default function EmployeesClient({
   const [employeeForm, setEmployeeForm] = useState({
     name: "",
     phone: "",
+    password: "",
     nic: "",
     baseSalary: "",
   });
@@ -78,7 +79,7 @@ export default function EmployeesClient({
   // ===== Employee handlers =====
   const openAddEmployee = () => {
     setEditingEmployee(null);
-    setEmployeeForm({ name: "", phone: "", nic: "", baseSalary: "" });
+    setEmployeeForm({ name: "", phone: "", password: "", nic: "", baseSalary: "" });
     setEmployeeError("");
     setEmployeeDialogOpen(true);
   };
@@ -88,6 +89,7 @@ export default function EmployeesClient({
     setEmployeeForm({
       name: emp.name,
       phone: emp.phone || "",
+      password: "", // do not populate password on edit
       nic: emp.nic || "",
       baseSalary: emp.baseSalary.toString(),
     });
@@ -102,6 +104,7 @@ export default function EmployeesClient({
     const data = {
       name: employeeForm.name,
       phone: employeeForm.phone,
+      password: employeeForm.password || undefined,
       nic: employeeForm.nic,
       baseSalary: parseFloat(employeeForm.baseSalary),
     };
@@ -710,7 +713,7 @@ export default function EmployeesClient({
 
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                Phone Number
+                Phone Number (Login ID)
               </label>
               <input
                 type="text"
@@ -720,6 +723,21 @@ export default function EmployeesClient({
                 }
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"
                 placeholder="07X XXX XXXX"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                Password {editingEmployee && "(Leave blank to keep current)"}
+              </label>
+              <input
+                type="text"
+                value={employeeForm.password}
+                onChange={(e) =>
+                  setEmployeeForm({ ...employeeForm, password: e.target.value })
+                }
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"
+                placeholder="Password (min 6 chars)"
               />
             </div>
 

@@ -19,15 +19,23 @@ export async function getAllEmployees(activeOnly: boolean = false) {
 export async function createEmployee(data: {
   name: string;
   phone?: string;
+  password?: string;
   nic?: string;
   baseSalary: number;
 }) {
   const validated = employeeSchema.parse(data);
+  let passwordHash = null;
+
+  if (data.password) {
+    const bcrypt = require("bcryptjs");
+    passwordHash = await bcrypt.hash(data.password, 12);
+  }
 
   const employee = await prisma.employee.create({
     data: {
       name: validated.name,
       phone: validated.phone || null,
+      passwordHash,
       nic: validated.nic || null,
       baseSalary: validated.baseSalary,
     },
@@ -54,17 +62,25 @@ export async function updateEmployee(
   data: {
     name: string;
     phone?: string;
+    password?: string;
     nic?: string;
     baseSalary: number;
   }
 ) {
   const validated = employeeSchema.parse(data);
 
+  let passwordHash = undefined;
+  if (data.password) {
+    const bcrypt = require("bcryptjs");
+    passwordHash = await bcrypt.hash(data.password, 12);
+  }
+
   const employee = await prisma.employee.update({
     where: { id },
     data: {
       name: validated.name,
       phone: validated.phone || null,
+      ...(passwordHash ? { passwordHash } : {}),
       nic: validated.nic || null,
       baseSalary: validated.baseSalary,
     },

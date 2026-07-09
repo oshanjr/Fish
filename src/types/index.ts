@@ -1,6 +1,6 @@
 // Type definitions for Fish Store Management System
 
-export type UserRole = "MANAGER" | "SUPERVISOR";
+export type UserRole = "MANAGER" | "SUPERVISOR" | "EMPLOYEE";
 export type AttendanceStatus = "PRESENT" | "ABSENT";
 export type ContactType = "SUPPLIER" | "BUYER";
 

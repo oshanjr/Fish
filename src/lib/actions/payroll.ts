@@ -56,14 +56,25 @@ export async function updatePayrollAdvance(data: {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      await prisma.dailyExpense.create({
-        data: {
-          date: today,
-          category: `Salary Advance - ${current.employee.name}`,
-          amount: validated.advanceTaken,
-          loggedBy: userId,
-        },
-      });
+      try {
+        const userExists = await prisma.user.findUnique({
+          where: { id: userId },
+        });
+
+        if (userExists) {
+          await prisma.dailyExpense.create({
+            data: {
+              date: today,
+              category: `Salary Advance - ${current.employee.name}`,
+              amount: validated.advanceTaken,
+              loggedBy: userId,
+            },
+          });
+        }
+      } catch (e) {
+        console.error("Failed to log daily expense for salary advance", e);
+        // We don't want to throw and crash the advance update if expense logging fails
+      }
     }
   }
 

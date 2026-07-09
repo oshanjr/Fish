@@ -18,11 +18,13 @@ export default function DashboardShell({
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <Sidebar
-        userRole={user.role}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
+      {user.role !== "EMPLOYEE" && (
+        <Sidebar
+          userRole={user.role}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+      )}
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header

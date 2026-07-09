@@ -12,9 +12,33 @@ import {
 import Link from "next/link";
 import type { UserRole } from "@/types";
 
+import { prisma } from "@/lib/prisma";
+import EmployeeDashboardClient from "./employee-dashboard-client";
+
 export default async function DashboardPage() {
   const session = await auth();
   const role = (session?.user?.role ?? "SUPERVISOR") as UserRole;
+
+  if (role === "EMPLOYEE") {
+    const employeeId = session?.user?.id;
+    
+    // Fetch employee data
+    const [payroll, attendance] = await Promise.all([
+      prisma.staffPayroll.findUnique({ where: { employeeId } }),
+      prisma.staffAttendance.findMany({
+        where: { employeeId, status: "PRESENT" },
+      }),
+    ]);
+
+    return (
+      <EmployeeDashboardClient
+        name={session?.user?.name || "Employee"}
+        advanceTaken={Number(payroll?.advanceTaken || 0)}
+        balanceOwed={Number(payroll?.balanceOwed || 0)}
+        attendanceCount={attendance.length}
+      />
+    );
+  }
 
   const quickActions = [
     {
