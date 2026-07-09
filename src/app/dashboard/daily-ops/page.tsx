@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getTodaysAttendance, getStaffList } from "@/lib/actions/attendance";
 import { getTodaysExpenses } from "@/lib/actions/expenses";
 import DailyOpsClient from "./daily-ops-client";

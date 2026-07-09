@@ -27,7 +27,13 @@ export async function addExpense(data: { category: string; amount: number }) {
 
   revalidatePath("/dashboard/daily-ops");
   revalidatePath("/dashboard/evening-closing");
-  return { success: true, data: expense };
+  return { 
+    success: true, 
+    data: {
+      ...expense,
+      amount: Number(expense.amount),
+    } 
+  };
 }
 
 export async function getTodaysExpenses() {

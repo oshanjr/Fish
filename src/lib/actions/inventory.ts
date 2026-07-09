@@ -28,7 +28,16 @@ export async function createFishIntake(data: {
 
   revalidatePath("/dashboard/morning-intake");
   revalidatePath("/dashboard/evening-closing");
-  return { success: true, data: log };
+  return { 
+    success: true, 
+    data: {
+      ...log,
+      incomingWeight: Number(log.incomingWeight),
+      buyingPricePerKg: Number(log.buyingPricePerKg),
+      sellingPricePerKg: Number(log.sellingPricePerKg),
+      wastageWeight: Number(log.wastageWeight),
+    } 
+  };
 }
 
 export async function getTodaysInventory() {
@@ -61,7 +70,16 @@ export async function updateWastage(data: {
   });
 
   revalidatePath("/dashboard/evening-closing");
-  return { success: true, data: log };
+  return { 
+    success: true, 
+    data: {
+      ...log,
+      incomingWeight: Number(log.incomingWeight),
+      buyingPricePerKg: Number(log.buyingPricePerKg),
+      sellingPricePerKg: Number(log.sellingPricePerKg),
+      wastageWeight: Number(log.wastageWeight),
+    } 
+  };
 }
 
 export async function deleteInventoryLog(id: string) {

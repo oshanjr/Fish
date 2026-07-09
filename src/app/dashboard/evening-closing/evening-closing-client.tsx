@@ -5,6 +5,7 @@ import { Moon, AlertTriangle, Calculator, DollarSign, Loader2, Save } from "luci
 import { updateWastage } from "@/lib/actions/inventory";
 import { saveDaySummary } from "@/lib/actions/summary";
 import type { DailySummary } from "@/types";
+import { wastageSchema, posSalesSchema } from "@/lib/validations";
 
 interface InventoryItem {
   id: string;
@@ -36,17 +37,17 @@ export default function EveningClosingClient({
     setMessage("");
 
     const weight = parseFloat(wastageForm.wastageWeight);
-    if (!wastageForm.inventoryLogId || isNaN(weight) || weight < 0) {
-      setMessage("Please select a fish type and enter a valid weight.");
+    const data = { inventoryLogId: wastageForm.inventoryLogId, wastageWeight: weight };
+    const validation = wastageSchema.safeParse(data);
+
+    if (!validation.success) {
+      setMessage(validation.error.errors[0].message);
       return;
     }
 
     startTransitionWastage(async () => {
       try {
-        await updateWastage({
-          inventoryLogId: wastageForm.inventoryLogId,
-          wastageWeight: weight,
-        });
+        await updateWastage(data);
         
         // Optimistically update the summary UI (actual numbers will refresh on navigate or revalidatePath)
         const item = inventory.find(i => i.id === wastageForm.inventoryLogId);
@@ -72,14 +73,17 @@ export default function EveningClosingClient({
     setMessage("");
 
     const sales = parseFloat(posSalesInput);
-    if (isNaN(sales) || sales < 0) {
-      setMessage("Please enter a valid total POS sales amount.");
+    const data = { totalPosSales: sales };
+    const validation = posSalesSchema.safeParse(data);
+
+    if (!validation.success) {
+      setMessage(validation.error.errors[0].message);
       return;
     }
 
     startTransitionSummary(async () => {
       try {
-        const result = await saveDaySummary(sales);
+        const result = await saveDaySummary(data.totalPosSales);
         if (result.success) {
           setSummary({
             ...result.data,

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Wallet, DollarSign, Loader2, RotateCcw } from "lucide-react";
 import { updatePayrollAdvance, resetPayrollAdvances } from "@/lib/actions/payroll";
 import type { PayrollEntry } from "@/types";
+import { payrollUpdateSchema } from "@/lib/validations";
 
 export default function PayrollClient({
   initialPayroll,
@@ -20,17 +21,17 @@ export default function PayrollClient({
     setMessage("");
 
     const amount = parseFloat(advanceForm.amount);
-    if (!advanceForm.id || isNaN(amount) || amount <= 0) {
-      setMessage("Please select an employee and enter a valid advance amount.");
+    const data = { id: advanceForm.id, advanceTaken: amount };
+    const validation = payrollUpdateSchema.safeParse(data);
+
+    if (!validation.success) {
+      setMessage(validation.error.errors[0].message);
       return;
     }
 
     startTransition(async () => {
       try {
-        const result = await updatePayrollAdvance({
-          id: advanceForm.id,
-          advanceTaken: amount,
-        });
+        const result = await updatePayrollAdvance(data);
 
         if (result.success) {
           setPayroll((prev) =>

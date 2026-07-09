@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getTodaysInventory } from "@/lib/actions/inventory";
 import { computeDailySummary } from "@/lib/actions/summary";
 import EveningClosingClient from "./evening-closing-client";

@@ -102,7 +102,17 @@ export async function saveDaySummary(totalPosSales: number) {
 
   revalidatePath("/dashboard/evening-closing");
   revalidatePath("/dashboard/hub-sync");
-  return { success: true, data: summary };
+  return { 
+    success: true, 
+    data: {
+      ...summary,
+      totalPosSales: Number(summary.totalPosSales),
+      totalBuyingCost: Number(summary.totalBuyingCost),
+      calculatedExpenses: Number(summary.calculatedExpenses),
+      calculatedWastageCost: Number(summary.calculatedWastageCost),
+      netProfit: Number(summary.netProfit),
+    } 
+  };
 }
 
 export async function getSyncHistory() {

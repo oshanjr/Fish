@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveAttendance } from "@/lib/actions/attendance";
 import { addExpense, deleteExpense } from "@/lib/actions/expenses";
 import { EXPENSE_CATEGORIES } from "@/types";
+import { expenseSchema, attendanceSchema } from "@/lib/validations";
 
 interface AttendanceEntry {
   id: string;
@@ -59,6 +60,13 @@ export default function DailyOpsClient({
 
   const handleSaveAttendance = () => {
     setAttendanceMessage("");
+    const validation = attendanceSchema.safeParse({ entries: attendance });
+
+    if (!validation.success) {
+      setAttendanceMessage("Invalid attendance data.");
+      return;
+    }
+
     startTransitionAttendance(async () => {
       try {
         await saveAttendance(attendance);
@@ -74,14 +82,17 @@ export default function DailyOpsClient({
     setExpenseError("");
 
     const amount = parseFloat(expenseForm.amount);
-    if (!expenseForm.category || isNaN(amount) || amount <= 0) {
-      setExpenseError("Please select a category and enter a valid amount.");
+    const data = { category: expenseForm.category, amount };
+    const validation = expenseSchema.safeParse(data);
+
+    if (!validation.success) {
+      setExpenseError(validation.error.errors[0].message);
       return;
     }
 
     startTransitionExpense(async () => {
       try {
-        const result = await addExpense({ category: expenseForm.category, amount });
+        const result = await addExpense(data);
         if (result.success) {
           // Note: we might not get the loggedByName from the create response immediately, 
           // but revalidatePath will refresh the page data anyway.

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getTodaysInventory } from "@/lib/actions/inventory";
 import MorningIntakeClient from "./morning-intake-client";
 

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { createFishIntake, deleteInventoryLog } from "@/lib/actions/inventory";
 import { FISH_TYPES } from "@/types";
+import { fishIntakeSchema } from "@/lib/validations";
 
 interface InventoryLog {
   id: string;
@@ -47,8 +48,10 @@ export default function MorningIntakeClient({
       sellingPricePerKg: parseFloat(formData.sellingPricePerKg),
     };
 
-    if (!data.fishType || isNaN(data.incomingWeight) || isNaN(data.buyingPricePerKg) || isNaN(data.sellingPricePerKg)) {
-      setError("Please fill in all fields with valid values.");
+    const validation = fishIntakeSchema.safeParse(data);
+    
+    if (!validation.success) {
+      setError(validation.error.errors[0].message);
       return;
     }
 

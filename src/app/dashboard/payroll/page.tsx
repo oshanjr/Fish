@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getAllPayroll } from "@/lib/actions/payroll";
 import PayrollClient from "./payroll-client";
 import { PayrollEntry } from "@/types";

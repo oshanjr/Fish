@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getSyncHistory } from "@/lib/actions/summary";
 import HubSyncClient from "./hub-sync-client";
 import { SyncHistoryEntry } from "@/types";
