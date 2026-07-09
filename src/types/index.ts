@@ -73,12 +73,15 @@ export interface ContactDetailEntry extends ContactEntry {
 }
 
 export interface DailySummary {
+  id?: string;
+  date?: string;
   totalPosSales: number;
-  totalBuyingCost: number;
+  weeklyTotalPosSales?: number;
   calculatedExpenses: number;
   calculatedWastageCost: number;
+  totalBuyingCost: number;
   netProfit: number;
-  isSyncedWithHub: boolean;
+  isSyncedWithHub?: boolean;
 }
 
 export interface SyncHistoryEntry {

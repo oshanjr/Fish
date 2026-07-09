@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Moon, AlertTriangle, Calculator, DollarSign, Loader2, Save } from "lucide-react";
-import { updateWastage } from "@/lib/actions/inventory";
+import { Moon, Calculator, DollarSign, Loader2, Save } from "lucide-react";
 import { saveDaySummary } from "@/lib/actions/summary";
 import type { DailySummary } from "@/types";
-import { wastageSchema, posSalesSchema } from "@/lib/validations";
+import { posSalesSchema } from "@/lib/validations";
 
 interface InventoryItem {
   id: string;
@@ -22,51 +21,13 @@ export default function EveningClosingClient({
   initialSummary: DailySummary;
 }) {
   const [summary, setSummary] = useState<DailySummary>(initialSummary);
-  const [isPendingWastage, startTransitionWastage] = useTransition();
   const [isPendingSummary, startTransitionSummary] = useTransition();
 
-  const [wastageForm, setWastageForm] = useState({ inventoryLogId: "", wastageWeight: "" });
   const [posSalesInput, setPosSalesInput] = useState(
     summary.totalPosSales > 0 ? summary.totalPosSales.toString() : ""
   );
 
   const [message, setMessage] = useState("");
-
-  const handleUpdateWastage = (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage("");
-
-    const weight = parseFloat(wastageForm.wastageWeight);
-    const data = { inventoryLogId: wastageForm.inventoryLogId, wastageWeight: weight };
-    const validation = wastageSchema.safeParse(data);
-
-    if (!validation.success) {
-      setMessage(validation.error.errors[0].message);
-      return;
-    }
-
-    startTransitionWastage(async () => {
-      try {
-        await updateWastage(data);
-        
-        // Optimistically update the summary UI (actual numbers will refresh on navigate or revalidatePath)
-        const item = inventory.find(i => i.id === wastageForm.inventoryLogId);
-        if (item) {
-          const costDiff = (weight - item.wastageWeight) * item.buyingPricePerKg;
-          setSummary(prev => ({
-            ...prev,
-            calculatedWastageCost: prev.calculatedWastageCost + costDiff,
-            netProfit: prev.netProfit - costDiff,
-          }));
-        }
-
-        setMessage("Wastage updated.");
-        setWastageForm({ inventoryLogId: "", wastageWeight: "" });
-      } catch {
-        setMessage("Failed to update wastage.");
-      }
-    });
-  };
 
   const handleSaveSummary = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +49,7 @@ export default function EveningClosingClient({
           setSummary({
             ...result.data,
             totalPosSales: Number(result.data.totalPosSales),
+            weeklyTotalPosSales: Number(result.data.weeklyTotalPosSales),
             totalBuyingCost: Number(result.data.totalBuyingCost),
             calculatedExpenses: Number(result.data.calculatedExpenses),
             calculatedWastageCost: Number(result.data.calculatedWastageCost),
@@ -116,7 +78,6 @@ export default function EveningClosingClient({
       {message && (
         <div className={`p-4 rounded-xl border text-sm ${
           message.includes("success") ? "bg-green-50 border-green-200 text-green-700" :
-          message.includes("Wastage") ? "bg-blue-50 border-blue-200 text-blue-700" :
           "bg-red-50 border-red-200 text-red-700"
         }`}>
           {message}
@@ -126,54 +87,6 @@ export default function EveningClosingClient({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column: Input Forms */}
         <div className="space-y-6">
-          
-          {/* Wastage Tracker */}
-          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5">
-            <h2 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-              Wastage Tracker
-            </h2>
-            <form onSubmit={handleUpdateWastage} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  Select Fish (From Today's Intake)
-                </label>
-                <select
-                  value={wastageForm.inventoryLogId}
-                  onChange={(e) => setWastageForm({ ...wastageForm, inventoryLogId: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400"
-                >
-                  <option value="">Select entry...</option>
-                  {inventory.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.fishType} — {item.wastageWeight}kg recorded
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  New Wastage Weight (kg)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={wastageForm.wastageWeight}
-                  onChange={(e) => setWastageForm({ ...wastageForm, wastageWeight: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">This will override the previous wastage value for this entry.</p>
-              </div>
-              <button
-                type="submit"
-                disabled={isPendingWastage || inventory.length === 0}
-                className="w-full py-2.5 rounded-lg bg-amber-50 text-amber-700 text-sm font-semibold hover:bg-amber-100 disabled:opacity-50 transition-colors flex justify-center items-center gap-2 border border-amber-200"
-              >
-                {isPendingWastage && <Loader2 className="w-4 h-4 animate-spin" />}
-                Update Wastage
-              </button>
-            </form>
-          </div>
 
           {/* POS Reconciliation */}
           <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5">
@@ -196,10 +109,14 @@ export default function EveningClosingClient({
                       setPosSalesInput(e.target.value);
                       // Optimistically update net profit in UI
                       const sales = parseFloat(e.target.value) || 0;
+                      // The net profit optimistic update is a bit tricky now since we need to add the diff to the weekly totals,
+                      // For simplicity we will just let it reflect after they hit Save.
                       setSummary(prev => ({
                         ...prev,
                         totalPosSales: sales,
-                        netProfit: sales - prev.totalBuyingCost - prev.calculatedExpenses - prev.calculatedWastageCost
+                        // update the weekly pos sales optimisticly by replacing the old today amount with the new one
+                        weeklyTotalPosSales: (prev.weeklyTotalPosSales || 0) - prev.totalPosSales + sales,
+                        netProfit: (prev.weeklyTotalPosSales || 0) - prev.totalPosSales + sales - prev.totalBuyingCost - prev.calculatedExpenses
                       }));
                     }}
                     className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400/30 focus:border-cyan-400 font-medium"
@@ -229,17 +146,17 @@ export default function EveningClosingClient({
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl" />
           
           <h2 className="text-lg font-semibold text-white/90 mb-6 flex items-center gap-2 relative z-10">
-            Financial Summary
+            This Week's Summary
             <span className="text-xs font-normal text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded-full ml-auto">
-              Real-time
+              Mon-Sun
             </span>
           </h2>
 
           <div className="space-y-4 relative z-10 text-sm">
             <div className="flex justify-between items-center pb-3 border-b border-white/10">
-              <span className="text-slate-400">Gross Sales (POS)</span>
+              <span className="text-slate-400">Total Gross Sales</span>
               <span className="font-medium">
-                {summary.totalPosSales.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                {(summary.weeklyTotalPosSales ?? summary.totalPosSales).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
               </span>
             </div>
             
@@ -248,19 +165,14 @@ export default function EveningClosingClient({
               <span>{summary.totalBuyingCost.toLocaleString("en-LK", { minimumFractionDigits: 2 })}</span>
             </div>
             
-            <div className="flex justify-between items-center text-slate-300">
+            <div className="flex justify-between items-center pb-4 border-b border-white/10 text-slate-300">
               <span>− Operational Expenses</span>
               <span>{summary.calculatedExpenses.toLocaleString("en-LK", { minimumFractionDigits: 2 })}</span>
-            </div>
-            
-            <div className="flex justify-between items-center pb-4 border-b border-white/10 text-slate-300">
-              <span>− Wastage Loss</span>
-              <span>{summary.calculatedWastageCost.toLocaleString("en-LK", { minimumFractionDigits: 2 })}</span>
             </div>
 
             <div className="pt-2">
               <div className="flex justify-between items-end">
-                <span className="text-slate-400 font-medium">Estimated Net Profit</span>
+                <span className="text-slate-400 font-medium">Weekly Net Profit</span>
                 <div className="text-right">
                   <span className={`text-2xl font-bold ${summary.netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                     {summary.netProfit >= 0 ? "+" : ""}
