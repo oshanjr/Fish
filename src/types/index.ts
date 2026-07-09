@@ -103,22 +103,7 @@ export const EXPENSE_CATEGORIES = [
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
-// Common fish types in Sri Lankan markets
-export const FISH_TYPES = [
-  "Tuna (Kelawalla)",
-  "Seer Fish (Thora)",
-  "Prawns (Isso)",
-  "Cuttlefish (Della)",
-  "Sardine (Salaya)",
-  "Mackerel (Kumbalawa)",
-  "Red Snapper (Rathu Gal Malu)",
-  "Mullet (Godaya)",
-  "Herring (Hurulla)",
-  "Skipjack (Balaya)",
-  "Other",
-] as const;
 
-export type FishType = (typeof FISH_TYPES)[number];
 
 // Navigation items for the sidebar
 export interface NavItem {

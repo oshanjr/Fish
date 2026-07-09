@@ -153,3 +153,11 @@ model ContactTransaction {
   @@index([date])
   @@map("contact_transactions")
 }
+
+model FishType {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("fish_types")
+}
