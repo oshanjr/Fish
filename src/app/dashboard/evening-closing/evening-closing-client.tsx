@@ -38,7 +38,7 @@ export default function EveningClosingClient({
     const validation = posSalesSchema.safeParse(data);
 
     if (!validation.success) {
-      setMessage(validation.error.errors[0].message);
+      setMessage(validation.error.issues[0].message);
       return;
     }
 
