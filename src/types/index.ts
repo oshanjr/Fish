@@ -2,6 +2,7 @@
 
 export type UserRole = "MANAGER" | "SUPERVISOR";
 export type AttendanceStatus = "PRESENT" | "ABSENT";
+export type ContactType = "SUPPLIER" | "BUYER";
 
 export interface SessionUser {
   id: string;
@@ -28,16 +29,47 @@ export interface WastageFormData {
 }
 
 export interface AttendanceEntry {
+  employeeId: string;
   employeeName: string;
   status: AttendanceStatus;
 }
 
 export interface PayrollEntry {
   id: string;
+  employeeId: string;
   employeeName: string;
   baseSalary: number;
   advanceTaken: number;
   balanceOwed: number;
+}
+
+export interface EmployeeEntry {
+  id: string;
+  name: string;
+  phone: string | null;
+  nic: string | null;
+  baseSalary: number;
+  isActive: boolean;
+}
+
+export interface ContactEntry {
+  id: string;
+  name: string;
+  phone: string | null;
+  type: ContactType;
+  totalBalance: number;
+}
+
+export interface ContactTransactionEntry {
+  id: string;
+  contactId: string;
+  date: string;
+  description: string;
+  amount: number;
+}
+
+export interface ContactDetailEntry extends ContactEntry {
+  transactions: ContactTransactionEntry[];
 }
 
 export interface DailySummary {

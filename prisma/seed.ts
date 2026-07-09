@@ -32,31 +32,93 @@ async function main() {
     },
   });
 
-  console.log("✅ Users seeded:", { manager: manager.email, supervisor: supervisor.email });
+  console.log("✅ Users seeded:", {
+    manager: manager.email,
+    supervisor: supervisor.email,
+  });
 
-  // Seed Staff Payroll (sample staff)
+  // Seed Employees
   const staffMembers = [
-    { employeeName: "Sunil Fernando", baseSalary: 45000 },
-    { employeeName: "Ruwan Jayasinghe", baseSalary: 40000 },
-    { employeeName: "Chaminda Bandara", baseSalary: 38000 },
-    { employeeName: "Amila Rathnayake", baseSalary: 42000 },
-    { employeeName: "Dinesh Kumara", baseSalary: 35000 },
+    { name: "Sunil Fernando", baseSalary: 45000, phone: "0771234567" },
+    { name: "Ruwan Jayasinghe", baseSalary: 40000, phone: "0779876543" },
+    { name: "Chaminda Bandara", baseSalary: 38000, phone: null },
+    { name: "Amila Rathnayake", baseSalary: 42000, phone: "0765551234" },
+    { name: "Dinesh Kumara", baseSalary: 35000, phone: null },
   ];
 
   for (const staff of staffMembers) {
-    await prisma.staffPayroll.upsert({
-      where: { employeeName: staff.employeeName },
+    const employee = await prisma.employee.upsert({
+      where: { name: staff.name },
       update: {},
       create: {
-        employeeName: staff.employeeName,
+        name: staff.name,
+        phone: staff.phone,
         baseSalary: staff.baseSalary,
-        advanceTaken: 0,
-        balanceOwed: 0,
+        isActive: true,
       },
     });
+
+    // Create payroll record for this employee
+    const existingPayroll = await prisma.staffPayroll.findUnique({
+      where: { employeeId: employee.id },
+    });
+
+    if (!existingPayroll) {
+      await prisma.staffPayroll.create({
+        data: {
+          employeeId: employee.id,
+          advanceTaken: 0,
+          balanceOwed: 0,
+        },
+      });
+    }
   }
 
-  console.log("✅ Staff payroll seeded:", staffMembers.length, "members");
+  console.log("✅ Employees seeded:", staffMembers.length, "members");
+
+  // Seed Contacts (Suppliers & Buyers)
+  const contacts = [
+    {
+      name: "Negombo Fish Market - Saman",
+      phone: "0712345678",
+      type: "SUPPLIER" as const,
+    },
+    {
+      name: "Chilaw Harbour - Pradeep",
+      phone: "0778765432",
+      type: "SUPPLIER" as const,
+    },
+    {
+      name: "Hotel Grand Palace",
+      phone: "0115556789",
+      type: "BUYER" as const,
+    },
+    {
+      name: "Lakma Restaurant",
+      phone: "0769991234",
+      type: "BUYER" as const,
+    },
+  ];
+
+  for (const contact of contacts) {
+    const existing = await prisma.contact.findFirst({
+      where: { name: contact.name, type: contact.type },
+    });
+
+    if (!existing) {
+      await prisma.contact.create({
+        data: {
+          name: contact.name,
+          phone: contact.phone,
+          type: contact.type,
+          totalBalance: 0,
+        },
+      });
+    }
+  }
+
+  console.log("✅ Contacts seeded:", contacts.length, "contacts");
+
   console.log("\n🎉 Seeding complete!");
   console.log("\n📋 Login credentials:");
   console.log("   Manager:    manager@fishstore.lk / manager123");

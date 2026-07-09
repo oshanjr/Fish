@@ -5,11 +5,12 @@ import { revalidatePath } from "next/cache";
 import type { AttendanceEntry } from "@/types";
 
 export async function getStaffList() {
-  const staff = await prisma.staffPayroll.findMany({
-    select: { employeeName: true },
-    orderBy: { employeeName: "asc" },
+  const employees = await prisma.employee.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
-  return staff.map((s) => s.employeeName);
+  return employees.map((e) => ({ id: e.id, name: e.name }));
 }
 
 export async function getTodaysAttendance() {
@@ -18,10 +19,16 @@ export async function getTodaysAttendance() {
 
   const attendance = await prisma.staffAttendance.findMany({
     where: { date: today },
-    orderBy: { employeeName: "asc" },
+    include: { employee: { select: { name: true } } },
+    orderBy: { employee: { name: "asc" } },
   });
 
-  return attendance;
+  return attendance.map((a) => ({
+    id: a.id,
+    employeeId: a.employeeId,
+    employeeName: a.employee.name,
+    status: a.status,
+  }));
 }
 
 export async function saveAttendance(entries: AttendanceEntry[]) {
@@ -33,21 +40,22 @@ export async function saveAttendance(entries: AttendanceEntry[]) {
     entries.map((entry) =>
       prisma.staffAttendance.upsert({
         where: {
-          date_employeeName: {
+          date_employeeId: {
             date: today,
-            employeeName: entry.employeeName,
+            employeeId: entry.employeeId,
           },
         },
         update: { status: entry.status },
         create: {
           date: today,
-          employeeName: entry.employeeName,
+          employeeId: entry.employeeId,
           status: entry.status,
         },
       })
     )
   );
 
+  revalidatePath("/dashboard/employees");
   revalidatePath("/dashboard/daily-ops");
   return { success: true, count: results.length };
 }

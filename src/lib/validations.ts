@@ -53,6 +53,7 @@ export const posSalesSchema = z.object({
 export const attendanceSchema = z.object({
   entries: z.array(
     z.object({
+      employeeId: z.string().min(1),
       employeeName: z.string().min(1),
       status: z.enum(["PRESENT", "ABSENT"]),
     })
@@ -71,4 +72,52 @@ export const payrollUpdateSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+// Contact validation
+export const contactSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(100, "Name must be under 100 characters"),
+  phone: z
+    .string()
+    .max(20, "Phone must be under 20 characters")
+    .optional()
+    .or(z.literal("")),
+  type: z.enum(["SUPPLIER", "BUYER"]),
+});
+
+// Contact transaction validation
+export const contactTransactionSchema = z.object({
+  contactId: z.string().min(1, "Contact is required"),
+  description: z
+    .string()
+    .min(1, "Description is required")
+    .max(200, "Description must be under 200 characters"),
+  amount: z
+    .number({ message: "Amount must be a number" })
+    .refine((val) => val !== 0, "Amount cannot be zero"),
+});
+
+// Employee validation
+export const employeeSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(100, "Name must be under 100 characters"),
+  phone: z
+    .string()
+    .max(20, "Phone must be under 20 characters")
+    .optional()
+    .or(z.literal("")),
+  nic: z
+    .string()
+    .max(20, "NIC must be under 20 characters")
+    .optional()
+    .or(z.literal("")),
+  baseSalary: z
+    .number({ message: "Salary must be a number" })
+    .min(0, "Salary cannot be negative")
+    .max(1000000, "Salary seems too high"),
 });

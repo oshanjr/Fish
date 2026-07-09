@@ -7,7 +7,8 @@ import {
   ClipboardList,
   Moon,
   RefreshCw,
-  Wallet,
+  Users,
+  UserCog,
   LayoutDashboard,
   X,
 } from "lucide-react";
@@ -45,15 +46,21 @@ const navItems = [
     roles: ["MANAGER"] as UserRole[],
   },
   {
-    label: "Hub Sync",
-    href: "/dashboard/hub-sync",
-    icon: RefreshCw,
+    label: "Sellers & Buyers",
+    href: "/dashboard/contacts",
+    icon: Users,
     roles: ["MANAGER"] as UserRole[],
   },
   {
-    label: "Payroll",
-    href: "/dashboard/payroll",
-    icon: Wallet,
+    label: "Employees",
+    href: "/dashboard/employees",
+    icon: UserCog,
+    roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
+  },
+  {
+    label: "Hub Sync",
+    href: "/dashboard/hub-sync",
+    icon: RefreshCw,
     roles: ["MANAGER"] as UserRole[],
   },
 ];
