@@ -159,3 +159,30 @@ export async function deleteTransaction(id: string) {
   revalidatePath(`/dashboard/contacts/${transaction.contactId}`);
   return { success: true };
 }
+
+export async function getTodaysTransactions() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const transactions = await prisma.contactTransaction.findMany({
+    where: {
+      date: {
+        gte: today,
+      }
+    },
+    include: {
+      contact: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    }
+  });
+
+  return transactions.map(t => ({
+    ...t,
+    date: t.date.toISOString(),
+    createdAt: t.createdAt.toISOString(),
+    amount: Number(t.amount),
+  }));
+}
+

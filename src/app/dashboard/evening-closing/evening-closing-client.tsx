@@ -16,9 +16,11 @@ interface InventoryItem {
 export default function EveningClosingClient({
   inventory,
   initialSummary,
+  transactions,
 }: {
   inventory: InventoryItem[];
   initialSummary: DailySummary;
+  transactions: any[]; // Using any[] for now as we don't have the exact Transaction type imported
 }) {
   const [summary, setSummary] = useState<DailySummary>(initialSummary);
   const [isPendingSummary, startTransitionSummary] = useTransition();
@@ -139,6 +141,76 @@ export default function EveningClosingClient({
             </form>
           </div>
 
+          {/* Transactions Summary */}
+          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 mt-6">
+            <h2 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-emerald-500" />
+              Today's Credit Transactions
+            </h2>
+            <div className="space-y-4">
+              {/* Buyer Transactions */}
+              <div>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">Buyer Payments / Sales</h3>
+                {transactions.filter(t => t.contact.type === "BUYER").length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No buyer transactions today</p>
+                ) : (
+                  <div className="border border-slate-100 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Contact</th>
+                          <th className="px-3 py-2 font-medium">Description</th>
+                          <th className="px-3 py-2 font-medium text-right">Amount (LKR)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {transactions.filter(t => t.contact.type === "BUYER").map(t => (
+                          <tr key={t.id} className="hover:bg-slate-50/50">
+                            <td className="px-3 py-2 font-medium text-slate-700">{t.contact.name}</td>
+                            <td className="px-3 py-2 text-slate-500">{t.description}</td>
+                            <td className="px-3 py-2 text-right font-medium text-emerald-600">
+                              {t.amount > 0 ? "+" : ""}{t.amount.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Supplier Transactions */}
+              <div>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">Supplier Payments</h3>
+                {transactions.filter(t => t.contact.type === "SUPPLIER").length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No supplier payments today</p>
+                ) : (
+                  <div className="border border-slate-100 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Contact</th>
+                          <th className="px-3 py-2 font-medium">Description</th>
+                          <th className="px-3 py-2 font-medium text-right">Amount (LKR)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {transactions.filter(t => t.contact.type === "SUPPLIER").map(t => (
+                          <tr key={t.id} className="hover:bg-slate-50/50">
+                            <td className="px-3 py-2 font-medium text-slate-700">{t.contact.name}</td>
+                            <td className="px-3 py-2 text-slate-500">{t.description}</td>
+                            <td className="px-3 py-2 text-right font-medium text-rose-600">
+                              {t.amount > 0 ? "-" : ""}{Math.abs(t.amount).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Right Column: Financial Summary */}
