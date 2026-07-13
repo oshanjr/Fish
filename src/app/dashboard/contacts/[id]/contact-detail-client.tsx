@@ -33,12 +33,11 @@ export default function ContactDetailClient({
     isPayment: false,
   });
   
-  // Calculator mode state for discounted bulk sales
-  const [calcMode, setCalcMode] = useState(false);
   const [calcForm, setCalcForm] = useState({
     fishType: "",
     weight: "",
     pricePerKg: "",
+    amountPaid: "",
   });
 
   const [formError, setFormError] = useState("");
@@ -61,7 +60,7 @@ export default function ContactDetailClient({
     let finalDescription = form.description;
     let rawAmount = parseFloat(form.amount);
 
-    if (calcMode && !form.isPayment) {
+    if (!form.isPayment) {
       const weight = parseFloat(calcForm.weight);
       const price = parseFloat(calcForm.pricePerKg);
       
@@ -102,14 +101,31 @@ export default function ContactDetailClient({
       try {
         const result = await addTransaction(data);
         if (result.success) {
+          let addedTxs = [result.data];
+          let balanceChange = finalAmount;
+          
+          if (!form.isPayment && calcForm.amountPaid) {
+            const amountPaidNum = parseFloat(calcForm.amountPaid);
+            if (!isNaN(amountPaidNum) && amountPaidNum > 0) {
+              const paymentResult = await addTransaction({
+                contactId: contact.id,
+                description: `Payment for ${calcForm.fishType} (${calcForm.weight}kg)`,
+                amount: -amountPaidNum,
+              });
+              if (paymentResult.success) {
+                addedTxs.unshift(paymentResult.data);
+                balanceChange -= amountPaidNum;
+              }
+            }
+          }
+
           setContact((prev) => ({
             ...prev,
-            totalBalance: prev.totalBalance + finalAmount,
-            transactions: [result.data, ...prev.transactions],
+            totalBalance: prev.totalBalance + balanceChange,
+            transactions: [...addedTxs, ...prev.transactions],
           }));
           setForm({ description: "", amount: "", isPayment: false });
-          setCalcForm({ fishType: "", weight: "", pricePerKg: "" });
-          setCalcMode(false);
+          setCalcForm({ fishType: "", weight: "", pricePerKg: "", amountPaid: "" });
         }
       } catch {
         setFormError("Failed to add transaction.");
@@ -271,22 +287,6 @@ export default function ContactDetailClient({
                 <Plus className="w-4 h-4 text-sky-500" />
                 Add Transaction
               </div>
-              
-              {/* Show calculation toggle only for credits (not payments) */}
-              {!form.isPayment && (
-                <button
-                  type="button"
-                  onClick={() => setCalcMode(!calcMode)}
-                  className={`p-1.5 rounded-lg transition-colors ${
-                    calcMode 
-                      ? "bg-amber-100 text-amber-600" 
-                      : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  }`}
-                  title="Calculate from weight and custom price"
-                >
-                  <Calculator className="w-4 h-4" />
-                </button>
-              )}
             </h2>
 
             {formError && (
@@ -319,7 +319,6 @@ export default function ContactDetailClient({
                     type="button"
                     onClick={() => {
                       setForm({ ...form, isPayment: true });
-                      setCalcMode(false); // Disable calc mode for payments
                     }}
                     className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all duration-200 ${
                       form.isPayment
@@ -332,7 +331,7 @@ export default function ContactDetailClient({
                 </div>
               </div>
 
-              {calcMode && !form.isPayment ? (
+              {!form.isPayment ? (
                 /* Advanced Calculation Form */
                 <div className="space-y-4 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
                   <div>
@@ -382,14 +381,38 @@ export default function ContactDetailClient({
                     </div>
                   </div>
                   
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Amount Paid Now (Optional)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={calcForm.amountPaid}
+                      onChange={(e) =>
+                        setCalcForm({ ...calcForm, amountPaid: e.target.value })
+                      }
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  
                   {/* Auto-calculated preview */}
                   <div className="pt-2 border-t border-amber-200/60 mt-2">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center mb-1">
                       <span className="text-xs text-slate-500 font-medium">Calculated Total:</span>
                       <span className="text-sm font-bold text-amber-600">
                         LKR {((parseFloat(calcForm.weight) || 0) * (parseFloat(calcForm.pricePerKg) || 0)).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
                       </span>
                     </div>
+                    {parseFloat(calcForm.amountPaid) > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-slate-500 font-medium">Net Credit Added:</span>
+                        <span className="text-sm font-bold text-rose-500">
+                          LKR {(((parseFloat(calcForm.weight) || 0) * (parseFloat(calcForm.pricePerKg) || 0)) - parseFloat(calcForm.amountPaid)).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

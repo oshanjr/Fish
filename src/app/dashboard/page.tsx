@@ -12,19 +12,45 @@ export default async function DashboardPage() {
     const employeeId = session?.user?.id;
     
     // Fetch employee data
-    const [payroll, attendance] = await Promise.all([
-      prisma.staffPayroll.findUnique({ where: { employeeId } }),
+    const payroll = await prisma.staffPayroll.findUnique({ 
+      where: { employeeId },
+      include: { employee: true }
+    });
+    const empName = payroll?.employee?.name || session?.user?.name || "Employee";
+
+    const [attendance, advances] = await Promise.all([
       prisma.staffAttendance.findMany({
-        where: { employeeId, status: "PRESENT" },
+        where: { employeeId },
+        orderBy: { date: 'asc' }
       }),
+      prisma.dailyExpense.findMany({
+        where: { category: { endsWith: `- ${empName}` } },
+        orderBy: { date: 'desc' }
+      })
     ]);
 
     return (
       <EmployeeDashboardClient
-        name={session?.user?.name || "Employee"}
+        name={empName}
+        earnedSalary={Number(payroll?.earnedSalary || 0)}
         advanceTaken={Number(payroll?.advanceTaken || 0)}
+        bonusEarned={Number(payroll?.bonusEarned || 0)}
         balanceOwed={Number(payroll?.balanceOwed || 0)}
-        attendanceCount={attendance.length}
+        attendance={attendance.map(a => ({
+          date: a.date.toISOString(),
+          status: a.status,
+          inTime: a.inTime,
+          outTime: a.outTime,
+          hoursWorked: a.hoursWorked ? Number(a.hoursWorked) : null,
+          earnedPay: a.earnedPay ? Number(a.earnedPay) : null,
+        }))}
+        transactions={advances.map(a => ({
+          id: a.id,
+          date: a.date.toISOString(),
+          amount: Number(a.amount),
+          type: a.category.startsWith("Bonus:") ? "BONUS" : "ADVANCE",
+          description: a.category.startsWith("Bonus:") ? a.category.split(" - ")[0].replace("Bonus: ", "") : "Salary Advance",
+        }))}
       />
     );
   }
@@ -62,17 +88,23 @@ export default async function DashboardPage() {
         netProfit: Number(todaySummary.netProfit),
       } : null}
       weekSummaries={weekSummaries.map(s => ({
-        ...s,
+        id: s.id,
+        date: s.date.toISOString(),
         totalPosSales: Number(s.totalPosSales),
         totalBuyingCost: Number(s.totalBuyingCost),
         calculatedExpenses: Number(s.calculatedExpenses),
         netProfit: Number(s.netProfit),
-        date: s.date.toISOString(),
       }))}
       recentTransactions={recentTransactions.map(t => ({
-        ...t,
+        id: t.id,
+        description: t.description,
         amount: Number(t.amount),
         date: t.date.toISOString(),
+        contact: {
+          id: t.contact.id,
+          name: t.contact.name,
+          type: t.contact.type,
+        }
       }))}
     />
   );

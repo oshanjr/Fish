@@ -12,6 +12,8 @@ export async function computeDailySummary() {
     where: { date: today },
   });
   const todayPosSales = existingTodaySummary ? Number(existingTodaySummary.totalPosSales) : 0;
+  const todayCashSales = existingTodaySummary ? Number(existingTodaySummary.cashSales) : 0;
+  const todayCardSales = existingTodaySummary ? Number(existingTodaySummary.cardSales) : 0;
 
   // Now calculate WEEKLY totals (Monday to Today)
   const dCopy = new Date(today);
@@ -50,7 +52,9 @@ export async function computeDailySummary() {
   const netProfit = totalPosSales - totalBuyingCost - calculatedExpenses;
 
   return {
-    totalPosSales: todayPosSales, // Send today's POS for the input field
+    totalPosSales: todayPosSales,
+    cashSales: todayCashSales,
+    cardSales: todayCardSales,
     weeklyTotalPosSales: Math.round(totalPosSales * 100) / 100, // Send weekly for the summary
     totalBuyingCost: Math.round(totalBuyingCost * 100) / 100,
     calculatedExpenses: Math.round(calculatedExpenses * 100) / 100,
@@ -60,9 +64,10 @@ export async function computeDailySummary() {
   };
 }
 
-export async function saveDaySummary(totalPosSales: number) {
+export async function saveDaySummary(data: { cashSales: number; cardSales: number }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const totalPosSales = data.cashSales + data.cardSales;
 
   // We need to calculate TODAY'S costs to save in the DB
   const todayInventory = await prisma.fishInventoryLog.findMany({
@@ -90,6 +95,8 @@ export async function saveDaySummary(totalPosSales: number) {
     where: { date: today },
     update: {
       totalPosSales,
+      cashSales: data.cashSales,
+      cardSales: data.cardSales,
       totalBuyingCost: Math.round(todayBuyingCost * 100) / 100,
       calculatedExpenses: Math.round(todayCalculatedExpenses * 100) / 100,
       calculatedWastageCost: 0,
@@ -98,6 +105,8 @@ export async function saveDaySummary(totalPosSales: number) {
     create: {
       date: today,
       totalPosSales,
+      cashSales: data.cashSales,
+      cardSales: data.cardSales,
       totalBuyingCost: Math.round(todayBuyingCost * 100) / 100,
       calculatedExpenses: Math.round(todayCalculatedExpenses * 100) / 100,
       calculatedWastageCost: 0,
@@ -140,13 +149,15 @@ export async function saveDaySummary(totalPosSales: number) {
 
   const weekNetProfit = weekPosSales - weekBuyingCost - weekCalculatedExpenses;
 
-  revalidatePath("/dashboard/evening-closing");
+  revalidatePath("/dashboard/daily-ops");
   revalidatePath("/dashboard/hub-sync");
   
   return { 
     success: true, 
     data: {
-      totalPosSales, // Send today's for the input
+      totalPosSales,
+      cashSales: data.cashSales,
+      cardSales: data.cardSales,
       weeklyTotalPosSales: Math.round(weekPosSales * 100) / 100,
       totalBuyingCost: Math.round(weekBuyingCost * 100) / 100,
       calculatedExpenses: Math.round(weekCalculatedExpenses * 100) / 100,

@@ -9,8 +9,9 @@ import {
   Plus,
 } from "lucide-react";
 import { addExpense, deleteExpense } from "@/lib/actions/expenses";
+import { saveDaySummary } from "@/lib/actions/summary";
 import { EXPENSE_CATEGORIES } from "@/types";
-import { expenseSchema } from "@/lib/validations";
+import { expenseSchema, posSalesSchema } from "@/lib/validations";
 
 interface Expense {
   id: string;
@@ -21,13 +22,23 @@ interface Expense {
 
 export default function DailyOpsClient({
   initialExpenses,
+  initialSummary,
 }: {
   initialExpenses: Expense[];
+  initialSummary: any;
 }) {
   const [expenses, setExpenses] = useState(initialExpenses);
   const [isPendingExpense, startTransitionExpense] = useTransition();
   const [expenseForm, setExpenseForm] = useState({ category: "", amount: "" });
   const [expenseError, setExpenseError] = useState("");
+
+  const [posForm, setPosForm] = useState({
+    cashSales: initialSummary.cashSales > 0 ? initialSummary.cashSales.toString() : "",
+    cardSales: initialSummary.cardSales > 0 ? initialSummary.cardSales.toString() : "",
+  });
+  const [isPendingPos, startTransitionPos] = useTransition();
+  const [posMessage, setPosMessage] = useState("");
+  const [posTotal, setPosTotal] = useState(initialSummary.totalPosSales || 0);
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +85,33 @@ export default function DailyOpsClient({
     });
   };
 
+  const handleSavePosSales = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPosMessage("");
+
+    const cash = parseFloat(posForm.cashSales) || 0;
+    const card = parseFloat(posForm.cardSales) || 0;
+    const data = { cashSales: cash, cardSales: card };
+    
+    const validation = posSalesSchema.safeParse(data);
+    if (!validation.success) {
+      setPosMessage(validation.error.issues[0].message);
+      return;
+    }
+
+    startTransitionPos(async () => {
+      try {
+        const result = await saveDaySummary(data);
+        if (result.success) {
+          setPosTotal(result.data.totalPosSales);
+          setPosMessage("POS Sales saved successfully!");
+        }
+      } catch {
+        setPosMessage("Failed to save POS sales.");
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -91,7 +129,73 @@ export default function DailyOpsClient({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Add Expense Form */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-6">
+          {/* POS Reconciliation */}
+          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-cyan-500" />
+              POS Reconciliation
+            </h2>
+            
+            {posMessage && (
+              <div className={`mb-4 p-3 rounded-lg border text-sm ${
+                posMessage.includes("success") ? "bg-green-50 border-green-200 text-green-700" :
+                "bg-red-50 border-red-200 text-red-700"
+              }`}>
+                {posMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleSavePosSales} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                  Cash Sales (LKR)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={posForm.cashSales}
+                  onChange={(e) => setPosForm({ ...posForm, cashSales: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                  Card Sales (LKR)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={posForm.cardSales}
+                  onChange={(e) => setPosForm({ ...posForm, cardSales: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all"
+                />
+              </div>
+
+              <div className="flex justify-between items-center py-2 border-t border-slate-100">
+                <span className="text-sm font-medium text-slate-500">Total Sales</span>
+                <span className="text-sm font-bold text-slate-800">
+                  LKR {((parseFloat(posForm.cashSales) || 0) + (parseFloat(posForm.cardSales) || 0)).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isPendingPos}
+                className="w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm font-semibold shadow-md shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-blue-400 disabled:opacity-50 transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                {isPendingPos ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Save POS Sales"
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Add Expense Form */}
           <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5">
             <h2 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
               <Plus className="w-4 h-4 text-pink-500" />

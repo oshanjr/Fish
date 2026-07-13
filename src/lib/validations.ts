@@ -43,8 +43,12 @@ export const wastageSchema = z.object({
 
 // POS Sales form validation
 export const posSalesSchema = z.object({
-  totalPosSales: z
-    .number({ message: "Sales amount must be a number" })
+  cashSales: z
+    .number({ message: "Cash sales amount must be a number" })
+    .min(0, "Sales cannot be negative")
+    .max(10000000, "Amount seems too high"),
+  cardSales: z
+    .number({ message: "Card sales amount must be a number" })
     .min(0, "Sales cannot be negative")
     .max(10000000, "Amount seems too high"),
 });
@@ -53,9 +57,14 @@ export const posSalesSchema = z.object({
 export const attendanceSchema = z.object({
   entries: z.array(
     z.object({
+      id: z.string().optional(),
       employeeId: z.string().min(1),
       employeeName: z.string().min(1),
-      status: z.enum(["PRESENT", "ABSENT"]),
+      status: z.enum(["PRESENT", "ABSENT", "HALF_DAY"]),
+      inTime: z.string().nullable().optional(),
+      outTime: z.string().nullable().optional(),
+      hoursWorked: z.number().nullable().optional(),
+      earnedPay: z.number().nullable().optional(),
     })
   ),
 });
@@ -66,6 +75,13 @@ export const payrollUpdateSchema = z.object({
   advanceTaken: z
     .number({ message: "Amount must be a number" })
     .min(0, "Amount cannot be negative"),
+});
+
+// Bonus validation
+export const bonusUpdateSchema = z.object({
+  employeeId: z.string().min(1, "Employee is required"),
+  amount: z.number({ message: "Amount must be a number" }).positive("Amount must be greater than 0"),
+  description: z.string().min(1, "Description is required").max(100, "Description must be under 100 characters"),
 });
 
 // Login validation

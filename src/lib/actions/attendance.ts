@@ -28,6 +28,10 @@ export async function getTodaysAttendance() {
     employeeId: a.employeeId,
     employeeName: a.employee.name,
     status: a.status,
+    inTime: a.inTime,
+    outTime: a.outTime,
+    hoursWorked: a.hoursWorked ? Number(a.hoursWorked) : null,
+    earnedPay: a.earnedPay ? Number(a.earnedPay) : null,
   }));
 }
 
@@ -35,27 +39,80 @@ export async function saveAttendance(entries: AttendanceEntry[]) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Upsert each attendance entry
-  const results = await Promise.all(
-    entries.map((entry) =>
-      prisma.staffAttendance.upsert({
+  // Upsert each attendance entry and update payroll
+  let count = 0;
+  for (const entry of entries) {
+    // Get existing attendance and employee salary
+    const existing = await prisma.staffAttendance.findUnique({
+      where: {
+        date_employeeId: {
+          date: today,
+          employeeId: entry.employeeId,
+        },
+      },
+      include: {
+        employee: { select: { baseSalary: true } }
+      }
+    });
+
+    let baseSalary = 0;
+    if (existing) {
+      baseSalary = Number(existing.employee.baseSalary);
+    } else {
+      const emp = await prisma.employee.findUnique({ where: { id: entry.employeeId }, select: { baseSalary: true } });
+      if (emp) baseSalary = Number(emp.baseSalary);
+    }
+
+    const newHours = entry.hoursWorked || 0;
+    const newEarnedPay = baseSalary * (newHours / 12);
+    const existingPay = existing?.earnedPay ? Number(existing.earnedPay) : 0;
+    const payDelta = newEarnedPay - existingPay;
+
+    await prisma.$transaction(async (tx) => {
+      // Update or create attendance
+      await tx.staffAttendance.upsert({
         where: {
           date_employeeId: {
             date: today,
             employeeId: entry.employeeId,
           },
         },
-        update: { status: entry.status },
+        update: { 
+          status: entry.status,
+          inTime: entry.inTime,
+          outTime: entry.outTime,
+          hoursWorked: newHours,
+          earnedPay: newEarnedPay,
+        },
         create: {
           date: today,
           employeeId: entry.employeeId,
           status: entry.status,
+          inTime: entry.inTime,
+          outTime: entry.outTime,
+          hoursWorked: newHours,
+          earnedPay: newEarnedPay,
         },
-      })
-    )
-  );
+      });
+
+      // Update payroll if pay changed
+      if (payDelta !== 0) {
+        const payroll = await tx.staffPayroll.findUnique({ where: { employeeId: entry.employeeId } });
+        if (payroll) {
+          await tx.staffPayroll.update({
+            where: { employeeId: entry.employeeId },
+            data: {
+              earnedSalary: { increment: payDelta },
+              balanceOwed: { increment: payDelta },
+            }
+          });
+        }
+      }
+    });
+    count++;
+  }
 
   revalidatePath("/dashboard/employees");
   revalidatePath("/dashboard/daily-ops");
-  return { success: true, count: results.length };
+  return { success: true, count };
 }

@@ -10,6 +10,7 @@ import {
   Users,
   UserCog,
   LayoutDashboard,
+  PieChart,
   X,
 } from "lucide-react";
 import type { UserRole } from "@/types";
@@ -39,12 +40,7 @@ const navItems = [
     icon: ClipboardList,
     roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
   },
-  {
-    label: "Evening Closing",
-    href: "/dashboard/evening-closing",
-    icon: Moon,
-    roles: ["MANAGER"] as UserRole[],
-  },
+
   {
     label: "Sellers & Buyers",
     href: "/dashboard/contacts",
@@ -55,6 +51,12 @@ const navItems = [
     label: "Employees",
     href: "/dashboard/employees",
     icon: UserCog,
+    roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
+  },
+  {
+    label: "Reports",
+    href: "/dashboard/reports",
+    icon: PieChart,
     roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
   },
   {

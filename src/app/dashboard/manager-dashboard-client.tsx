@@ -14,7 +14,8 @@ import {
   ArrowRight,
   DollarSign,
   ShoppingCart,
-  Activity
+  Activity,
+  PieChart
 } from "lucide-react";
 import Link from "next/link";
 import type { UserRole } from "@/types";
@@ -84,6 +85,15 @@ export default function ManagerDashboardClient({
       icon: UserCog,
       gradient: "from-indigo-500 to-purple-500",
       shadow: "shadow-indigo-500/20",
+      roles: ["MANAGER", "SUPERVISOR"],
+    },
+    {
+      title: "Monthly Reports",
+      description: "Financials, attendance & payroll",
+      href: "/dashboard/reports",
+      icon: PieChart,
+      gradient: "from-fuchsia-500 to-pink-500",
+      shadow: "shadow-fuchsia-500/20",
       roles: ["MANAGER", "SUPERVISOR"],
     },
     {

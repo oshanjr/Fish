@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { createEmployee, updateEmployee, toggleEmployeeActive } from "@/lib/actions/employees";
 import { saveAttendance } from "@/lib/actions/attendance";
-import { updatePayrollAdvance, resetPayrollAdvances } from "@/lib/actions/payroll";
+import { updatePayrollAdvance, resetPayrollAdvances, addPayrollBonus } from "@/lib/actions/payroll";
 import { employeeSchema, attendanceSchema, payrollUpdateSchema } from "@/lib/validations";
 import type { EmployeeEntry, AttendanceEntry, PayrollEntry } from "@/types";
 
@@ -63,14 +63,23 @@ export default function EmployeesClient({
         employeeId: staff.id,
         employeeName: staff.name,
         status: existing ? existing.status : ("ABSENT" as const),
+        inTime: existing?.inTime,
+        outTime: existing?.outTime,
+        hoursWorked: existing?.hoursWorked,
+        earnedPay: existing?.earnedPay,
       };
     })
   );
   const [attendanceMessage, setAttendanceMessage] = useState("");
+  
+  const [customAttendanceModal, setCustomAttendanceModal] = useState(false);
+  const [selectedEmpForCustom, setSelectedEmpForCustom] = useState<string | null>(null);
+  const [customTime, setCustomTime] = useState({ in: "08:00", out: "17:00" });
 
   // Payroll state
   const [payroll, setPayroll] = useState(initialPayroll);
   const [advanceForm, setAdvanceForm] = useState({ id: "", amount: "" });
+  const [bonusForm, setBonusForm] = useState({ id: "", amount: "", description: "" });
   const [payrollMessage, setPayrollMessage] = useState("");
 
   // Shared transition
@@ -156,11 +165,58 @@ export default function EmployeesClient({
   };
 
   // ===== Attendance handlers =====
-  const handleToggleAttendance = (employeeId: string) => {
+  const handleFullDay = (employeeId: string) => {
     setAttendance((prev) =>
       prev.map((a) =>
         a.employeeId === employeeId
-          ? { ...a, status: a.status === "PRESENT" ? ("ABSENT" as const) : ("PRESENT" as const) }
+          ? { ...a, status: "PRESENT", hoursWorked: 12, inTime: null, outTime: null }
+          : a
+      )
+    );
+  };
+
+  const openCustomModal = (employeeId: string) => {
+    const existing = attendance.find(a => a.employeeId === employeeId);
+    setCustomTime({ in: existing?.inTime || "08:00", out: existing?.outTime || "17:00" });
+    setSelectedEmpForCustom(employeeId);
+    setCustomAttendanceModal(true);
+  };
+
+  const handleSaveCustom = () => {
+    if (!selectedEmpForCustom) return;
+    
+    // Calculate hours worked
+    const [inH, inM] = customTime.in.split(":").map(Number);
+    const [outH, outM] = customTime.out.split(":").map(Number);
+    let hours = 0;
+    if (!isNaN(inH) && !isNaN(outH)) {
+      hours = (outH + outM / 60) - (inH + inM / 60);
+      if (hours < 0) hours += 24; // Handle overnight
+    }
+
+    setAttendance((prev) =>
+      prev.map((a) =>
+        a.employeeId === selectedEmpForCustom
+          ? { 
+              ...a, 
+              status: "PRESENT", 
+              inTime: customTime.in, 
+              outTime: customTime.out, 
+              hoursWorked: Number(hours.toFixed(2))
+            }
+          : a
+      )
+    );
+    
+    setCustomAttendanceModal(false);
+    setSelectedEmpForCustom(null);
+  };
+
+  const handleMarkAbsent = (employeeId: string) => {
+    setAttendance((prev) =>
+      prev.map((a) =>
+        a.employeeId === employeeId
+          ? { ...a, status: "ABSENT", hoursWorked: null, inTime: null, outTime: null }
           : a
       )
     );
@@ -220,6 +276,27 @@ export default function EmployeesClient({
         }
       } catch {
         setPayrollMessage("Failed to update advance.");
+      }
+    });
+  };
+
+  const handleUpdateBonus = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPayrollMessage("");
+
+    const amount = parseFloat(bonusForm.amount);
+    const data = { employeeId: bonusForm.id, amount, description: bonusForm.description };
+
+    startTransition(async () => {
+      try {
+        const result = await addPayrollBonus(data);
+
+        if (result.success) {
+          setBonusForm({ id: "", amount: "", description: "" });
+          setPayrollMessage("Extra pay logged in daily expenses.");
+        }
+      } catch {
+        setPayrollMessage("Failed to log extra pay.");
       }
     });
   };
@@ -428,8 +505,7 @@ export default function EmployeesClient({
                 Mark Today&apos;s Attendance
               </h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
-                {attendance.filter((a) => a.status === "PRESENT").length}{" "}
-                Present
+                {attendance.filter((a) => a.status === "PRESENT").length + attendance.filter((a) => a.status === "HALF_DAY").length * 0.5} Present
               </span>
             </div>
 
@@ -457,23 +533,56 @@ export default function EmployeesClient({
                   {attendance.map((entry) => (
                     <div
                       key={entry.employeeId}
-                      onClick={() =>
-                        handleToggleAttendance(entry.employeeId)
-                      }
-                      className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border transition-all duration-200 gap-3 sm:gap-0 ${
                         entry.status === "PRESENT"
                           ? "bg-emerald-50/50 border-emerald-200 shadow-sm"
-                          : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          : "bg-white border-slate-200"
                       }`}
                     >
-                      <span className="font-medium text-slate-700 text-sm">
-                        {entry.employeeName}
-                      </span>
-                      {entry.status === "PRESENT" ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : (
-                        <Circle className="w-5 h-5 text-slate-300" />
-                      )}
+                      <div className="flex flex-col">
+                        <span className="font-medium text-slate-700 text-sm">
+                          {entry.employeeName}
+                        </span>
+                        {entry.status === "PRESENT" && (
+                          <span className="text-xs text-emerald-600 mt-1 font-medium flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {entry.hoursWorked === 12 
+                              ? "Full Day (12h)" 
+                              : `Custom (${entry.hoursWorked}h) ${entry.inTime ? `[${entry.inTime} - ${entry.outTime}]` : ''}`
+                            }
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {entry.status === "PRESENT" && (
+                          <button
+                            onClick={() => handleMarkAbsent(entry.employeeId)}
+                            className="px-3 py-1.5 text-xs font-medium text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-red-500 transition-colors"
+                          >
+                            Mark Absent
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleFullDay(entry.employeeId)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                            entry.status === "PRESENT" && entry.hoursWorked === 12
+                              ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                              : "bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 border border-transparent"
+                          }`}
+                        >
+                          Full Day
+                        </button>
+                        <button
+                          onClick={() => openCustomModal(entry.employeeId)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                            entry.status === "PRESENT" && entry.hoursWorked !== 12 && entry.hoursWorked !== null
+                              ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                              : "bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 border border-transparent"
+                          }`}
+                        >
+                          Custom
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -598,6 +707,88 @@ export default function EmployeesClient({
                   </button>
                 </form>
               </div>
+
+              {/* Bonus Form */}
+              <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 mt-6">
+                <h2 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-emerald-500" />
+                  Add Extra Pay / Bonus
+                </h2>
+
+                <form onSubmit={handleUpdateBonus} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Employee
+                    </label>
+                    <select
+                      value={bonusForm.id}
+                      onChange={(e) =>
+                        setBonusForm({
+                          ...bonusForm,
+                          id: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400"
+                    >
+                      <option value="">Select employee...</option>
+                      {payroll.map((p) => (
+                        <option key={p.id} value={p.employeeId}>
+                          {p.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Description
+                    </label>
+                    <input
+                      type="text"
+                      value={bonusForm.description}
+                      onChange={(e) =>
+                        setBonusForm({
+                          ...bonusForm,
+                          description: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400"
+                      placeholder="E.g., Overtime, Good performance"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Amount (LKR)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={bonusForm.amount}
+                      onChange={(e) =>
+                        setBonusForm({
+                          ...bonusForm,
+                          amount: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    className="w-full py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-green-500 text-white text-sm font-semibold shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:from-emerald-400 hover:to-green-400 disabled:opacity-50 transition-all duration-200 flex justify-center items-center gap-2"
+                  >
+                    {isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Log Extra Pay"
+                    )}
+                  </button>
+                </form>
+              </div>
             </div>
 
             {/* Payroll Table */}
@@ -617,10 +808,16 @@ export default function EmployeesClient({
                           Employee Name
                         </th>
                         <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Base Salary (LKR)
+                          Daily Rate (LKR)
+                        </th>
+                        <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Earned Salary (LKR)
                         </th>
                         <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                           Advances Taken (LKR)
+                        </th>
+                        <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Bonus Earned (LKR)
                         </th>
                         <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                           Balance Owed (LKR)
@@ -651,9 +848,23 @@ export default function EmployeesClient({
                                 minimumFractionDigits: 2,
                               })}
                             </td>
+                            <td className="px-5 py-3 text-right text-emerald-600 font-medium">
+                              {record.earnedSalary > 0
+                                ? record.earnedSalary.toLocaleString("en-LK", {
+                                    minimumFractionDigits: 2,
+                                  })
+                                : "—"}
+                            </td>
                             <td className="px-5 py-3 text-right text-rose-600 font-medium">
                               {record.advanceTaken > 0
                                 ? record.advanceTaken.toLocaleString("en-LK", {
+                                    minimumFractionDigits: 2,
+                                  })
+                                : "—"}
+                            </td>
+                            <td className="px-5 py-3 text-right text-emerald-600 font-medium">
+                              {record.bonusEarned > 0
+                                ? record.bonusEarned.toLocaleString("en-LK", {
                                     minimumFractionDigits: 2,
                                   })
                                 : "—"}
@@ -800,6 +1011,62 @@ export default function EmployeesClient({
               </button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom Attendance Dialog */}
+      <Dialog open={customAttendanceModal} onOpenChange={setCustomAttendanceModal}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-800">
+              Custom Attendance Hours
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                  In Time
+                </label>
+                <input
+                  type="time"
+                  value={customTime.in}
+                  onChange={(e) => setCustomTime({ ...customTime, in: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                  Out Time
+                </label>
+                <input
+                  type="time"
+                  value={customTime.out}
+                  onChange={(e) => setCustomTime({ ...customTime, out: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setCustomAttendanceModal(false)}
+                className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveCustom}
+                className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-sm font-semibold shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Save Hours
+              </button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

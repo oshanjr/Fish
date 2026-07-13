@@ -23,7 +23,7 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
           </button>
         )}
         <div>
-          <p className="text-xs text-slate-400 font-medium">
+          <p className="text-xs text-slate-400 font-medium" suppressHydrationWarning>
             {new Date().toLocaleDateString("en-LK", {
               weekday: "long",
               year: "numeric",

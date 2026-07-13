@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { payrollUpdateSchema } from "@/lib/validations";
+import { payrollUpdateSchema, bonusUpdateSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 
@@ -16,7 +16,9 @@ export async function getAllPayroll() {
     employeeId: p.employeeId,
     employeeName: p.employee.name,
     baseSalary: Number(p.employee.baseSalary),
+    earnedSalary: Number(p.earnedSalary),
     advanceTaken: Number(p.advanceTaken),
+    bonusEarned: Number(p.bonusEarned),
     balanceOwed: Number(p.balanceOwed),
   }));
 }
@@ -37,7 +39,8 @@ export async function updatePayrollAdvance(data: {
   }
 
   const newAdvanceTotal = Number(current.advanceTaken) + validated.advanceTaken;
-  const newBalance = Number(current.employee.baseSalary) - newAdvanceTotal;
+  // Balance Owed = Earned Salary + Bonus Earned - Advances Taken
+  const newBalance = Number(current.earnedSalary) + Number(current.bonusEarned) - newAdvanceTotal;
 
   const updated = await prisma.staffPayroll.update({
     where: { id: validated.id },
@@ -88,32 +91,78 @@ export async function updatePayrollAdvance(data: {
       employeeName: current.employee.name,
       baseSalary: Number(current.employee.baseSalary),
       advanceTaken: Number(updated.advanceTaken),
+      bonusEarned: Number(updated.bonusEarned),
       balanceOwed: Number(updated.balanceOwed),
     },
   };
 }
 
 export async function resetPayrollAdvances() {
-  // Reset all advances
+  // Reset all advances, bonuses, and earned salary
   await prisma.staffPayroll.updateMany({
     data: {
+      earnedSalary: 0,
       advanceTaken: 0,
+      bonusEarned: 0,
       balanceOwed: 0,
     },
   });
 
-  // Recalculate balances based on employee base salary
-  const allPayroll = await prisma.staffPayroll.findMany({
-    include: { employee: { select: { baseSalary: true } } },
+  revalidatePath("/dashboard/employees");
+  return { success: true };
+}
+
+export async function addPayrollBonus(data: {
+  employeeId: string;
+  amount: number;
+  description: string;
+}) {
+  const validated = bonusUpdateSchema.parse(data);
+
+  const current = await prisma.staffPayroll.findUnique({
+    where: { employeeId: validated.employeeId },
+    include: { employee: { select: { name: true, baseSalary: true } } },
   });
 
-  for (const record of allPayroll) {
-    await prisma.staffPayroll.update({
-      where: { id: record.id },
-      data: { balanceOwed: record.employee.baseSalary },
+  if (!current) {
+    throw new Error("Staff member not found");
+  }
+
+  const newBonusTotal = Number(current.bonusEarned) + validated.amount;
+  const newBalance = Number(current.earnedSalary) + newBonusTotal - Number(current.advanceTaken);
+
+  await prisma.staffPayroll.update({
+    where: { employeeId: validated.employeeId },
+    data: {
+      bonusEarned: newBonusTotal,
+      balanceOwed: newBalance,
+    }
+  });
+
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (userId) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
     });
+
+    if (userExists) {
+      await prisma.dailyExpense.create({
+        data: {
+          date: today,
+          category: `Bonus: ${validated.description} - ${current.employee.name}`,
+          amount: validated.amount,
+          loggedBy: userId,
+        },
+      });
+    }
   }
 
   revalidatePath("/dashboard/employees");
+  revalidatePath("/dashboard/daily-ops");
   return { success: true };
 }

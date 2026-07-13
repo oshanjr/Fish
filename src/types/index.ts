@@ -1,7 +1,7 @@
 // Type definitions for Fish Store Management System
 
 export type UserRole = "MANAGER" | "SUPERVISOR" | "EMPLOYEE";
-export type AttendanceStatus = "PRESENT" | "ABSENT";
+export type AttendanceStatus = "PRESENT" | "ABSENT" | "HALF_DAY";
 export type ContactType = "SUPPLIER" | "BUYER";
 
 export interface SessionUser {
@@ -29,9 +29,14 @@ export interface WastageFormData {
 }
 
 export interface AttendanceEntry {
+  id?: string;
   employeeId: string;
   employeeName: string;
   status: AttendanceStatus;
+  inTime?: string | null;
+  outTime?: string | null;
+  hoursWorked?: number | null;
+  earnedPay?: number | null;
 }
 
 export interface PayrollEntry {
@@ -39,7 +44,9 @@ export interface PayrollEntry {
   employeeId: string;
   employeeName: string;
   baseSalary: number;
+  earnedSalary: number;
   advanceTaken: number;
+  bonusEarned: number;
   balanceOwed: number;
 }
 
@@ -76,6 +83,8 @@ export interface DailySummary {
   id?: string;
   date?: string;
   totalPosSales: number;
+  cashSales?: number;
+  cardSales?: number;
   weeklyTotalPosSales?: number;
   calculatedExpenses: number;
   calculatedWastageCost: number;
