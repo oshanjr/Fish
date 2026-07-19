@@ -54,6 +54,12 @@ const navItems = [
     roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
   },
   {
+    label: "EPF / ETF",
+    href: "/dashboard/epf-etf",
+    icon: Users, // Can change icon if needed, maybe FileText
+    roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
+  },
+  {
     label: "Reports",
     href: "/dashboard/reports",
     icon: PieChart,

@@ -37,6 +37,7 @@ model User {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   expenses     DailyExpense[]
+  epfEtf       EpfEtfRecord[]
 
   @@map("users")
 }
@@ -54,6 +55,7 @@ model Employee {
 
   attendance StaffAttendance[]
   payroll    StaffPayroll?
+  epfEtf     EpfEtfRecord[]
 
   @@map("employees")
 }
@@ -117,6 +119,23 @@ model StaffPayroll {
   updatedAt    DateTime @updatedAt
 
   @@map("staff_payroll")
+}
+
+model EpfEtfRecord {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  month      String   // Format: "YYYY-MM"
+  epfAmount  Decimal  @default(0) @db.Decimal(10, 2)
+  etfAmount  Decimal  @default(0) @db.Decimal(10, 2)
+  loggedBy   String
+  user       User     @relation(fields: [loggedBy], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, month])
+  @@index([month])
+  @@map("epf_etf_records")
 }
 
 model DailyStoreSummary {
