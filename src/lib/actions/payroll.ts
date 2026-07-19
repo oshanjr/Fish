@@ -173,3 +173,18 @@ export async function addPayrollBonus(data: {
   revalidatePath("/dashboard/daily-ops");
   return { success: true };
 }
+
+export async function issueAdvanceByEmployeeId(employeeId: string, amount: number) {
+  const current = await prisma.staffPayroll.findUnique({
+    where: { employeeId },
+  });
+
+  if (!current) {
+    throw new Error("Payroll record not found for this employee");
+  }
+
+  return updatePayrollAdvance({
+    id: current.id,
+    advanceTaken: amount,
+  });
+}

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { addExpense, deleteExpense } from "@/lib/actions/expenses";
 import { saveDaySummary } from "@/lib/actions/summary";
+import { issueAdvanceByEmployeeId } from "@/lib/actions/payroll";
 import { EXPENSE_CATEGORIES } from "@/types";
 import { expenseSchema, posSalesSchema } from "@/lib/validations";
 
@@ -23,13 +24,16 @@ interface Expense {
 export default function DailyOpsClient({
   initialExpenses,
   initialSummary,
+  employees,
 }: {
   initialExpenses: Expense[];
   initialSummary: any;
+  employees: { id: string; name: string }[];
 }) {
   const [expenses, setExpenses] = useState(initialExpenses);
   const [isPendingExpense, startTransitionExpense] = useTransition();
   const [expenseForm, setExpenseForm] = useState({ category: "", amount: "" });
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [expenseError, setExpenseError] = useState("");
 
   const [posForm, setPosForm] = useState({
@@ -55,18 +59,42 @@ export default function DailyOpsClient({
 
     startTransitionExpense(async () => {
       try {
-        const result = await addExpense(data);
-        if (result.success) {
-          setExpenses((prev) => [
-            {
-              id: result.data.id,
-              category: result.data.category,
-              amount: Number(result.data.amount),
-              loggedByName: "You",
-            },
-            ...prev,
-          ]);
-          setExpenseForm({ category: "", amount: "" });
+        if (expenseForm.category === "Salary Advance") {
+          if (!selectedEmployeeId) {
+            setExpenseError("Please select an employee for the salary advance.");
+            return;
+          }
+          const result = await issueAdvanceByEmployeeId(selectedEmployeeId, amount);
+          if (result.success) {
+            // Expenses will re-fetch due to revalidatePath, but we can also optimistically update
+            // if we really wanted. For now, since revalidatePath happens, we might not need to manually push to setExpenses.
+            // Wait, we do manual update for generic expense below, let's do it for advance too:
+            setExpenses((prev) => [
+              {
+                id: `temp-${Date.now()}`,
+                category: `Salary Advance - ${employees.find(e => e.id === selectedEmployeeId)?.name}`,
+                amount: amount,
+                loggedByName: "You",
+              },
+              ...prev,
+            ]);
+            setExpenseForm({ category: "", amount: "" });
+            setSelectedEmployeeId("");
+          }
+        } else {
+          const result = await addExpense(data);
+          if (result.success) {
+            setExpenses((prev) => [
+              {
+                id: result.data.id,
+                category: result.data.category,
+                amount: Number(result.data.amount),
+                loggedByName: "You",
+              },
+              ...prev,
+            ]);
+            setExpenseForm({ category: "", amount: "" });
+          }
         }
       } catch {
         setExpenseError("Failed to add expense.");
@@ -231,6 +259,26 @@ export default function DailyOpsClient({
                   ))}
                 </select>
               </div>
+
+              {expenseForm.category === "Salary Advance" && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Select Employee
+                  </label>
+                  <select
+                    value={selectedEmployeeId}
+                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-pink-400/30 focus:border-pink-400 transition-all"
+                  >
+                    <option value="">Choose an employee...</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">
