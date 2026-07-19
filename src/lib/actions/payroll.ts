@@ -39,8 +39,8 @@ export async function updatePayrollAdvance(data: {
   }
 
   const newAdvanceTotal = Number(current.advanceTaken) + validated.advanceTaken;
-  // Balance Owed = Earned Salary + Bonus Earned - Advances Taken
-  const newBalance = Number(current.earnedSalary) + Number(current.bonusEarned) - newAdvanceTotal;
+  // Balance Owed = Base Salary + Earned Salary - Advances Taken
+  const newBalance = Number(current.employee.baseSalary) + Number(current.earnedSalary) - newAdvanceTotal;
 
   const updated = await prisma.staffPayroll.update({
     where: { id: validated.id },
@@ -98,15 +98,21 @@ export async function updatePayrollAdvance(data: {
 }
 
 export async function resetPayrollAdvances() {
-  // Reset all advances, bonuses, and earned salary
-  await prisma.staffPayroll.updateMany({
-    data: {
-      earnedSalary: 0,
-      advanceTaken: 0,
-      bonusEarned: 0,
-      balanceOwed: 0,
-    },
+  const payrolls = await prisma.staffPayroll.findMany({
+    include: { employee: { select: { baseSalary: true } } }
   });
+
+  for (const p of payrolls) {
+    await prisma.staffPayroll.update({
+      where: { id: p.id },
+      data: {
+        earnedSalary: 0,
+        advanceTaken: 0,
+        bonusEarned: 0,
+        balanceOwed: Number(p.employee.baseSalary),
+      },
+    });
+  }
 
   revalidatePath("/dashboard/employees");
   return { success: true };
@@ -129,7 +135,8 @@ export async function addPayrollBonus(data: {
   }
 
   const newBonusTotal = Number(current.bonusEarned) + validated.amount;
-  const newBalance = Number(current.earnedSalary) + newBonusTotal - Number(current.advanceTaken);
+  // Balance Owed = Base Salary + Earned Salary - Advances Taken (Bonuses are paid out immediately)
+  const newBalance = Number(current.employee.baseSalary) + Number(current.earnedSalary) - Number(current.advanceTaken);
 
   await prisma.staffPayroll.update({
     where: { employeeId: validated.employeeId },
