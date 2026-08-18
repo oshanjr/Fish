@@ -5,6 +5,7 @@ import { fishIntakeSchema, wastageSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 
 export async function createFishIntake(data: {
+  date?: string;
   fishType: string;
   incomingWeight: number;
   buyingPricePerKg: number;
@@ -12,12 +13,15 @@ export async function createFishIntake(data: {
 }) {
   const validated = fishIntakeSchema.parse(data);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  let targetDate = new Date();
+  if (validated.date) {
+    targetDate = new Date(validated.date);
+  }
+  targetDate.setHours(0, 0, 0, 0);
 
   const log = await prisma.fishInventoryLog.create({
     data: {
-      date: today,
+      date: targetDate,
       fishType: validated.fishType,
       incomingWeight: validated.incomingWeight,
       buyingPricePerKg: validated.buyingPricePerKg,
@@ -40,12 +44,15 @@ export async function createFishIntake(data: {
   };
 }
 
-export async function getTodaysInventory() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function getTodaysInventory(targetDateStr?: string) {
+  let targetDate = new Date();
+  if (targetDateStr) {
+    targetDate = new Date(targetDateStr);
+  }
+  targetDate.setHours(0, 0, 0, 0);
 
   const logs = await prisma.fishInventoryLog.findMany({
-    where: { date: today },
+    where: { date: targetDate },
     orderBy: { createdAt: "desc" },
   });
 

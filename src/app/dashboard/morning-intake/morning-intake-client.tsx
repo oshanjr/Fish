@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Fish,
   Plus,
@@ -31,15 +32,26 @@ interface FishTypeModel {
 export default function MorningIntakeClient({
   initialLogs,
   fishTypes: initialFishTypes,
+  initialDateStr,
 }: {
   initialLogs: InventoryLog[];
   fishTypes: FishTypeModel[];
+  initialDateStr?: string;
 }) {
+  const router = useRouter();
   const [logs, setLogs] = useState(initialLogs);
+  
+  // Sync state if server prop changes (e.g. from date change)
+  useEffect(() => {
+    setLogs(initialLogs);
+  }, [initialLogs]);
   const [fishTypes, setFishTypes] = useState(initialFishTypes);
   const [isPending, startTransition] = useTransition();
   const [isAddingType, setIsAddingType] = useState(false);
   const [newTypeName, setNewTypeName] = useState("");
+
+  const todayString = new Date().toISOString().split("T")[0];
+  const activeDate = initialDateStr || todayString;
 
   const [formData, setFormData] = useState({
     fishType: "",
@@ -78,6 +90,7 @@ export default function MorningIntakeClient({
     }
 
     const data = {
+      date: activeDate,
       fishType: formData.fishType,
       incomingWeight: parseFloat(formData.incomingWeight),
       buyingPricePerKg: parseFloat(formData.buyingPricePerKg),
@@ -139,14 +152,31 @@ export default function MorningIntakeClient({
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Fish className="w-5 h-5 text-cyan-500" />
-          <h1 className="text-xl font-bold text-slate-800">Morning Intake</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Fish className="w-5 h-5 text-cyan-500" />
+            <h1 className="text-xl font-bold text-slate-800">Morning Intake</h1>
+          </div>
+          <p className="text-sm text-slate-500">
+            Record fish supply deliveries
+          </p>
         </div>
-        <p className="text-sm text-slate-500">
-          Record today&apos;s fish supply deliveries
-        </p>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-600">Date:</label>
+          <input
+            type="date"
+            value={activeDate}
+            onChange={(e) => {
+              if (e.target.value) {
+                router.push(`?date=${e.target.value}`);
+              } else {
+                router.push(`?date=${todayString}`);
+              }
+            }}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all"
+          />
+        </div>
       </div>
 
       {/* Add Form */}
@@ -335,7 +365,7 @@ export default function MorningIntakeClient({
       <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-700">
-            Today&apos;s Intake Log
+            Intake Log for {activeDate}
           </h2>
         </div>
         {logs.length === 0 ? (

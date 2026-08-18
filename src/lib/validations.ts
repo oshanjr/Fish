@@ -2,6 +2,7 @@ import { z } from "zod";
 
 // Fish Intake form validation
 export const fishIntakeSchema = z.object({
+  date: z.string().optional(),
   fishType: z
     .string()
     .min(1, "Fish type is required")
