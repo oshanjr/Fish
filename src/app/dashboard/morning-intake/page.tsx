@@ -7,12 +7,13 @@ import MorningIntakeClient from "./morning-intake-client";
 export default async function MorningIntakePage({
   searchParams,
 }: {
-  searchParams: { date?: string };
+  searchParams: Promise<{ date?: string }>;
 }) {
+  const resolvedParams = await searchParams;
   const [logs, fishTypes] = await Promise.all([
-    getTodaysInventory(searchParams.date),
+    getTodaysInventory(resolvedParams.date),
     getFishTypes(),
   ]);
 
-  return <MorningIntakeClient initialLogs={logs} fishTypes={fishTypes} initialDateStr={searchParams.date} />;
+  return <MorningIntakeClient initialLogs={logs} fishTypes={fishTypes} initialDateStr={resolvedParams.date} />;
 }
