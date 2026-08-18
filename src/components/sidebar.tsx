@@ -105,6 +105,7 @@ export default function Sidebar({ userRole, isOpen, onClose }: SidebarProps) {
         <div className="flex items-center justify-between px-5 h-16 border-b border-white/5">
           <Link
             href="/dashboard"
+            prefetch={false}
             className="flex items-center gap-3 group"
             onClick={onClose}
           >
@@ -144,6 +145,7 @@ export default function Sidebar({ userRole, isOpen, onClose }: SidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 onClick={onClose}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium

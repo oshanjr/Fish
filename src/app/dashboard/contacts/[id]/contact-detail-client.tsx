@@ -168,6 +168,7 @@ export default function ContactDetailClient({
       {/* Back Link */}
       <Link
         href="/dashboard/contacts"
+        prefetch={false}
         className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />

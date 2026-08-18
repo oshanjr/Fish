@@ -201,6 +201,7 @@ export default function ContactsClient({
 
                   <Link
                     href={`/dashboard/contacts/${contact.id}`}
+                    prefetch={false}
                     className="p-1.5 rounded-lg text-slate-300 group-hover:text-slate-500 transition-colors"
                   >
                     <ArrowRight className="w-4 h-4" />

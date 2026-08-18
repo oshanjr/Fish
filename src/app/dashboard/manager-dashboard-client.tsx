@@ -228,6 +228,7 @@ export default function ManagerDashboardClient({
                   <Link
                     key={action.href}
                     href={action.href}
+                    prefetch={false}
                     className="group relative overflow-hidden rounded-xl border border-slate-200/60 bg-white p-5 hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300 hover:-translate-y-0.5"
                   >
                     <div className="flex items-start justify-between mb-3">
@@ -254,7 +255,7 @@ export default function ManagerDashboardClient({
           <div className="bg-white rounded-xl border border-slate-200/60 p-5 shadow-sm h-fit">
             <h2 className="text-sm font-semibold text-slate-700 mb-4 flex items-center justify-between">
               Recent Transactions
-              <Link href="/dashboard/contacts" className="text-xs font-medium text-cyan-600 hover:text-cyan-700">View All</Link>
+              <Link href="/dashboard/contacts" prefetch={false} className="text-xs font-medium text-cyan-600 hover:text-cyan-700">View All</Link>
             </h2>
             
             <div className="space-y-4">
