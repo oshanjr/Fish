@@ -80,7 +80,7 @@ export default function DailyOpsClient({
             setExpenseError("Please select an employee for the salary advance.");
             return;
           }
-          const result = await issueAdvanceByEmployeeId(selectedEmployeeId, amount);
+          const result = await issueAdvanceByEmployeeId(selectedEmployeeId, amount, activeDate);
           if (result.success) {
             // Expenses will re-fetch due to revalidatePath, but we can also optimistically update
             // if we really wanted. For now, since revalidatePath happens, we might not need to manually push to setExpenses.
@@ -98,7 +98,7 @@ export default function DailyOpsClient({
             setSelectedEmployeeId("");
           }
         } else {
-          const result = await addExpense(data);
+          const result = await addExpense({ ...data, date: activeDate });
           if (result.success) {
             setExpenses((prev) => [
               {

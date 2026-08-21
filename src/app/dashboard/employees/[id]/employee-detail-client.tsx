@@ -70,7 +70,9 @@ export default function EmployeeDetailClient({
   const [paymentHistory, setPaymentHistory] = useState(initialPaymentHistory);
   
   const [advanceAmount, setAdvanceAmount] = useState("");
+  const [advanceDate, setAdvanceDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [bonusAmount, setBonusAmount] = useState("");
+  const [bonusDate, setBonusDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [bonusDescription, setBonusDescription] = useState("");
   const [message, setMessage] = useState("");
 
@@ -83,7 +85,7 @@ export default function EmployeeDetailClient({
     if (!payroll) return;
 
     const amount = parseFloat(advanceAmount);
-    const data = { id: payroll.id, advanceTaken: amount };
+    const data = { id: payroll.id, advanceTaken: amount, date: advanceDate };
     const validation = payrollUpdateSchema.safeParse(data);
 
     if (!validation.success) {
@@ -105,10 +107,10 @@ export default function EmployeeDetailClient({
           );
           
           // Optimistically add to history
-          const newEntry: HistoryData = {
-            id: `temp-${Date.now()}`,
-            date: new Date().toISOString(),
-            category: `Salary Advance - ${employee.name}`,
+            const newEntry: HistoryData = {
+              id: `temp-${Date.now()}`,
+              date: new Date(advanceDate).toISOString(),
+              category: `Salary Advance - ${employee.name}`,
             amount: amount,
             loggedBy: "You",
             createdAt: new Date().toISOString(),
@@ -131,7 +133,7 @@ export default function EmployeeDetailClient({
     if (!payroll) return;
 
     const amount = parseFloat(bonusAmount);
-    const data = { employeeId: employee.id, amount, description: bonusDescription || "Bonus" };
+    const data = { employeeId: employee.id, amount, description: bonusDescription || "Bonus", date: bonusDate };
 
     startTransition(async () => {
       try {
@@ -152,7 +154,7 @@ export default function EmployeeDetailClient({
            // Optimistically add to history
           const newEntry: HistoryData = {
             id: `temp-${Date.now()}`,
-            date: new Date().toISOString(),
+            date: new Date(bonusDate).toISOString(),
             category: `Bonus: ${data.description} - ${employee.name}`,
             amount: amount,
             loggedBy: "You",
@@ -268,6 +270,19 @@ export default function EmployeeDetailClient({
             <form onSubmit={handleUpdateAdvance} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={advanceDate}
+                  onChange={(e) => setAdvanceDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400/30 focus:border-rose-400 mb-4"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">
                   Amount (LKR)
                 </label>
                 <input
@@ -300,6 +315,19 @@ export default function EmployeeDetailClient({
             </h2>
 
             <form onSubmit={handleUpdateBonus} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={bonusDate}
+                  onChange={(e) => setBonusDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 mb-4"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">
                   Amount (LKR)

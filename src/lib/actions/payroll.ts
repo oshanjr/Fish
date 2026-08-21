@@ -26,6 +26,7 @@ export async function getAllPayroll() {
 export async function updatePayrollAdvance(data: {
   id: string;
   advanceTaken: number;
+  date?: string;
 }) {
   const validated = payrollUpdateSchema.parse(data);
 
@@ -56,8 +57,8 @@ export async function updatePayrollAdvance(data: {
     const userId = session?.user?.id;
 
     if (userId) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const targetDate = data.date ? new Date(data.date) : new Date();
+      targetDate.setHours(0, 0, 0, 0);
 
       try {
         const userExists = await prisma.user.findUnique({
@@ -67,7 +68,7 @@ export async function updatePayrollAdvance(data: {
         if (userExists) {
           await prisma.dailyExpense.create({
             data: {
-              date: today,
+              date: targetDate,
               category: `Salary Advance - ${current.employee.name}`,
               amount: validated.advanceTaken,
               loggedBy: userId,
@@ -122,6 +123,7 @@ export async function addPayrollBonus(data: {
   employeeId: string;
   amount: number;
   description: string;
+  date?: string;
 }) {
   const validated = bonusUpdateSchema.parse(data);
 
@@ -150,8 +152,8 @@ export async function addPayrollBonus(data: {
   const userId = session?.user?.id;
 
   if (userId) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const targetDate = data.date ? new Date(data.date) : new Date();
+    targetDate.setHours(0, 0, 0, 0);
 
     const userExists = await prisma.user.findUnique({
       where: { id: userId },
@@ -160,7 +162,7 @@ export async function addPayrollBonus(data: {
     if (userExists) {
       await prisma.dailyExpense.create({
         data: {
-          date: today,
+          date: targetDate,
           category: `Bonus: ${validated.description} - ${current.employee.name}`,
           amount: validated.amount,
           loggedBy: userId,
@@ -174,7 +176,7 @@ export async function addPayrollBonus(data: {
   return { success: true };
 }
 
-export async function issueAdvanceByEmployeeId(employeeId: string, amount: number) {
+export async function issueAdvanceByEmployeeId(employeeId: string, amount: number, dateStr?: string) {
   const current = await prisma.staffPayroll.findUnique({
     where: { employeeId },
   });
@@ -186,5 +188,6 @@ export async function issueAdvanceByEmployeeId(employeeId: string, amount: numbe
   return updatePayrollAdvance({
     id: current.id,
     advanceTaken: amount,
+    date: dateStr,
   });
 }

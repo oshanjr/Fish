@@ -5,7 +5,7 @@ import { expenseSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 
-export async function addExpense(data: { category: string; amount: number }) {
+export async function addExpense(data: { category: string; amount: number; date?: string }) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
@@ -13,12 +13,12 @@ export async function addExpense(data: { category: string; amount: number }) {
 
   const validated = expenseSchema.parse(data);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const targetDate = data.date ? new Date(data.date) : new Date();
+  targetDate.setHours(0, 0, 0, 0);
 
   const expense = await prisma.dailyExpense.create({
     data: {
-      date: today,
+      date: targetDate,
       category: validated.category,
       amount: validated.amount,
       loggedBy: session.user.id,
