@@ -3,34 +3,34 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-export async function computeDailySummary() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function computeDailySummary(dateStr?: string) {
+  const targetDate = dateStr ? new Date(dateStr) : new Date();
+  targetDate.setHours(0, 0, 0, 0);
 
-  // We still want to get today's POS sales to populate the input field
+  // We still want to get targetDate's POS sales to populate the input field
   const existingTodaySummary = await prisma.dailyStoreSummary.findUnique({
-    where: { date: today },
+    where: { date: targetDate },
   });
   const todayPosSales = existingTodaySummary ? Number(existingTodaySummary.totalPosSales) : 0;
   const todayCashSales = existingTodaySummary ? Number(existingTodaySummary.cashSales) : 0;
   const todayCardSales = existingTodaySummary ? Number(existingTodaySummary.cardSales) : 0;
 
-  // Now calculate WEEKLY totals (Monday to Today)
-  const dCopy = new Date(today);
+  // Now calculate WEEKLY totals (Monday to targetDate)
+  const dCopy = new Date(targetDate);
   const day = dCopy.getDay();
   const diff = dCopy.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
   const startOfWeek = new Date(dCopy.setDate(diff));
 
   const weekInventory = await prisma.fishInventoryLog.findMany({
-    where: { date: { gte: startOfWeek, lte: today } },
+    where: { date: { gte: startOfWeek, lte: targetDate } },
   });
 
   const weekExpenses = await prisma.dailyExpense.findMany({
-    where: { date: { gte: startOfWeek, lte: today } },
+    where: { date: { gte: startOfWeek, lte: targetDate } },
   });
 
   const weekSummaries = await prisma.dailyStoreSummary.findMany({
-    where: { date: { gte: startOfWeek, lte: today } },
+    where: { date: { gte: startOfWeek, lte: targetDate } },
   });
 
   const totalBuyingCost = weekInventory.reduce(
@@ -64,18 +64,18 @@ export async function computeDailySummary() {
   };
 }
 
-export async function saveDaySummary(data: { cashSales: number; cardSales: number }) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function saveDaySummary(data: { cashSales: number; cardSales: number; date?: string }) {
+  const targetDate = data.date ? new Date(data.date) : new Date();
+  targetDate.setHours(0, 0, 0, 0);
   const totalPosSales = data.cashSales + data.cardSales;
 
-  // We need to calculate TODAY'S costs to save in the DB
+  // We need to calculate targetDate'S costs to save in the DB
   const todayInventory = await prisma.fishInventoryLog.findMany({
-    where: { date: today },
+    where: { date: targetDate },
   });
 
   const todayExpenses = await prisma.dailyExpense.findMany({
-    where: { date: today },
+    where: { date: targetDate },
   });
 
   const todayBuyingCost = todayInventory.reduce(
@@ -90,9 +90,9 @@ export async function saveDaySummary(data: { cashSales: number; cardSales: numbe
 
   const todayNetProfit = totalPosSales - todayBuyingCost - todayCalculatedExpenses;
 
-  // Save TODAY's record
+  // Save targetDate's record
   await prisma.dailyStoreSummary.upsert({
-    where: { date: today },
+    where: { date: targetDate },
     update: {
       totalPosSales,
       cashSales: data.cashSales,
@@ -103,7 +103,7 @@ export async function saveDaySummary(data: { cashSales: number; cardSales: numbe
       netProfit: Math.round(todayNetProfit * 100) / 100,
     },
     create: {
-      date: today,
+      date: targetDate,
       totalPosSales,
       cashSales: data.cashSales,
       cardSales: data.cardSales,
@@ -115,21 +115,21 @@ export async function saveDaySummary(data: { cashSales: number; cardSales: numbe
   });
 
   // Now calculate WEEKLY totals to return to the UI
-  const dCopy = new Date(today);
+  const dCopy = new Date(targetDate);
   const day = dCopy.getDay();
   const diff = dCopy.getDate() - day + (day === 0 ? -6 : 1);
   const startOfWeek = new Date(dCopy.setDate(diff));
 
   const weekInventory = await prisma.fishInventoryLog.findMany({
-    where: { date: { gte: startOfWeek, lte: today } },
+    where: { date: { gte: startOfWeek, lte: targetDate } },
   });
 
   const weekExpenses = await prisma.dailyExpense.findMany({
-    where: { date: { gte: startOfWeek, lte: today } },
+    where: { date: { gte: startOfWeek, lte: targetDate } },
   });
 
   const weekSummaries = await prisma.dailyStoreSummary.findMany({
-    where: { date: { gte: startOfWeek, lte: today } },
+    where: { date: { gte: startOfWeek, lte: targetDate } },
   });
 
   const weekBuyingCost = weekInventory.reduce(
@@ -167,8 +167,16 @@ export async function saveDaySummary(data: { cashSales: number; cardSales: numbe
   };
 }
 
-export async function getSyncHistory() {
+export async function getSyncHistory(dateStr?: string) {
+  let whereClause = {};
+  if (dateStr) {
+    const targetDate = new Date(dateStr);
+    targetDate.setHours(0, 0, 0, 0);
+    whereClause = { date: targetDate };
+  }
+
   const summaries = await prisma.dailyStoreSummary.findMany({
+    where: whereClause,
     orderBy: { date: "desc" },
     take: 30,
   });

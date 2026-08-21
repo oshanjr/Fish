@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   ClipboardList,
   Receipt,
@@ -25,11 +26,14 @@ export default function DailyOpsClient({
   initialExpenses,
   initialSummary,
   employees,
+  initialDateStr,
 }: {
   initialExpenses: Expense[];
   initialSummary: any;
   employees: { id: string; name: string }[];
+  initialDateStr?: string;
 }) {
+  const router = useRouter();
   const [expenses, setExpenses] = useState(initialExpenses);
   const [isPendingExpense, startTransitionExpense] = useTransition();
   const [expenseForm, setExpenseForm] = useState({ category: "", amount: "" });
@@ -43,6 +47,18 @@ export default function DailyOpsClient({
   const [isPendingPos, startTransitionPos] = useTransition();
   const [posMessage, setPosMessage] = useState("");
   const [posTotal, setPosTotal] = useState(initialSummary.totalPosSales || 0);
+
+  const todayString = new Date().toISOString().split("T")[0];
+  const activeDate = initialDateStr || todayString;
+
+  useEffect(() => {
+    setExpenses(initialExpenses);
+    setPosForm({
+      cashSales: initialSummary.cashSales > 0 ? initialSummary.cashSales.toString() : "",
+      cardSales: initialSummary.cardSales > 0 ? initialSummary.cardSales.toString() : "",
+    });
+    setPosTotal(initialSummary.totalPosSales || 0);
+  }, [initialExpenses, initialSummary]);
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,7 +145,7 @@ export default function DailyOpsClient({
 
     startTransitionPos(async () => {
       try {
-        const result = await saveDaySummary(data);
+        const result = await saveDaySummary({ ...data, date: activeDate });
         if (result.success) {
           setPosTotal(result.data.totalPosSales);
           setPosMessage("POS Sales saved successfully!");
@@ -143,16 +159,33 @@ export default function DailyOpsClient({
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <ClipboardList className="w-5 h-5 text-violet-500" />
-          <h1 className="text-xl font-bold text-slate-800">
-            Daily Operations
-          </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <ClipboardList className="w-5 h-5 text-violet-500" />
+            <h1 className="text-xl font-bold text-slate-800">
+              Daily Operations
+            </h1>
+          </div>
+          <p className="text-sm text-slate-500">
+            Log daily cash expenses for the store
+          </p>
         </div>
-        <p className="text-sm text-slate-500">
-          Log daily cash expenses for the store
-        </p>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-600">Date:</label>
+          <input
+            type="date"
+            value={activeDate}
+            onChange={(e) => {
+              if (e.target.value) {
+                router.push(`?date=${e.target.value}`);
+              } else {
+                router.push(`?date=${todayString}`);
+              }
+            }}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -320,7 +353,7 @@ export default function DailyOpsClient({
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-slate-400" />
-                Today&apos;s Expenses
+                Expenses for {activeDate}
               </h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
                 Total: LKR{" "}
@@ -334,7 +367,7 @@ export default function DailyOpsClient({
               <div className="p-8 text-center">
                 <Receipt className="w-10 h-10 text-slate-200 mx-auto mb-3" />
                 <p className="text-sm text-slate-400">
-                  No expenses logged today.
+                  No expenses logged for this date.
                 </p>
               </div>
             ) : (

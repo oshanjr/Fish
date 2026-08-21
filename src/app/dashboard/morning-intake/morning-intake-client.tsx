@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Fish,
@@ -10,6 +10,8 @@ import {
   DollarSign,
   Loader2,
   Settings,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 import { createFishIntake, deleteInventoryLog } from "@/lib/actions/inventory";
 import { addFishType } from "@/lib/actions/fish-types";
@@ -60,6 +62,24 @@ export default function MorningIntakeClient({
     sellingPricePerKg: "",
   });
   const [error, setError] = useState("");
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredFishTypes = fishTypes.filter(type => 
+    type.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleAddFishType = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,32 +251,66 @@ export default function MorningIntakeClient({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
+            <div ref={dropdownRef} className="relative">
               <label className="block text-xs font-medium text-slate-600 mb-1.5">
                 Fish Type
               </label>
-              <select
-                value={formData.fishType}
-                onChange={(e) => {
-                  if (e.target.value === "ADD_NEW") {
-                    setIsAddingType(true);
-                    setFormData((prev) => ({ ...prev, fishType: "" }));
-                  } else {
-                    setFormData((prev) => ({ ...prev, fishType: e.target.value }));
-                  }
-                }}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-400/30 focus:border-cyan-400 transition-all"
+              <div 
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white cursor-pointer flex justify-between items-center transition-all focus-within:ring-2 focus-within:ring-cyan-400/30 focus-within:border-cyan-400"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               >
-                <option value="">Select fish type</option>
-                {fishTypes.map((type) => (
-                  <option key={type.id} value={type.name}>
-                    {type.name}
-                  </option>
-                ))}
-                <option value="ADD_NEW" className="font-semibold text-cyan-600">
-                  + Add New Fish Type...
-                </option>
-              </select>
+                <span className={formData.fishType ? "text-slate-700" : "text-slate-400"}>
+                  {formData.fishType || "Select fish type"}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </div>
+
+              {isDropdownOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col">
+                  <div className="p-2 border-b border-slate-100 flex items-center gap-2">
+                    <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      className="w-full text-sm outline-none bg-transparent text-slate-700"
+                      placeholder="Search fish type..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="overflow-y-auto">
+                    {filteredFishTypes.length === 0 ? (
+                      <div className="p-3 text-sm text-slate-500 text-center">No results found</div>
+                    ) : (
+                      filteredFishTypes.map((type) => (
+                        <div
+                          key={type.id}
+                          className="px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 cursor-pointer"
+                          onClick={() => {
+                            setFormData((prev) => ({ ...prev, fishType: type.name }));
+                            setSearchQuery("");
+                            setIsDropdownOpen(false);
+                          }}
+                        >
+                          {type.name}
+                        </div>
+                      ))
+                    )}
+                    <div
+                      className="px-3 py-2 text-sm font-semibold text-cyan-600 hover:bg-cyan-50 cursor-pointer border-t border-slate-100"
+                      onClick={() => {
+                        setIsAddingType(true);
+                        setFormData((prev) => ({ ...prev, fishType: "" }));
+                        setIsDropdownOpen(false);
+                        setSearchQuery("");
+                      }}
+                    >
+                      + Add New Fish Type...
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

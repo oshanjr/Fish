@@ -13,12 +13,12 @@ export async function getStaffList() {
   return employees.map((e) => ({ id: e.id, name: e.name }));
 }
 
-export async function getTodaysAttendance() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function getTodaysAttendance(dateStr?: string) {
+  const targetDate = dateStr ? new Date(dateStr) : new Date();
+  targetDate.setHours(0, 0, 0, 0);
 
   const attendance = await prisma.staffAttendance.findMany({
-    where: { date: today },
+    where: { date: targetDate },
     include: { employee: { select: { name: true } } },
     orderBy: { employee: { name: "asc" } },
   });
@@ -35,9 +35,9 @@ export async function getTodaysAttendance() {
   }));
 }
 
-export async function saveAttendance(entries: AttendanceEntry[]) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function saveAttendance(entries: AttendanceEntry[], dateStr?: string) {
+  const targetDate = dateStr ? new Date(dateStr) : new Date();
+  targetDate.setHours(0, 0, 0, 0);
 
   // Upsert each attendance entry and update payroll
   let count = 0;
@@ -46,7 +46,7 @@ export async function saveAttendance(entries: AttendanceEntry[]) {
     const existing = await prisma.staffAttendance.findUnique({
       where: {
         date_employeeId: {
-          date: today,
+          date: targetDate,
           employeeId: entry.employeeId,
         },
       },
@@ -73,7 +73,7 @@ export async function saveAttendance(entries: AttendanceEntry[]) {
       await tx.staffAttendance.upsert({
         where: {
           date_employeeId: {
-            date: today,
+            date: targetDate,
             employeeId: entry.employeeId,
           },
         },
@@ -85,7 +85,7 @@ export async function saveAttendance(entries: AttendanceEntry[]) {
           earnedPay: newEarnedPay,
         },
         create: {
-          date: today,
+          date: targetDate,
           employeeId: entry.employeeId,
           status: entry.status,
           inTime: entry.inTime,

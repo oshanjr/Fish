@@ -36,12 +36,12 @@ export async function addExpense(data: { category: string; amount: number }) {
   };
 }
 
-export async function getTodaysExpenses() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function getTodaysExpenses(dateStr?: string) {
+  const targetDate = dateStr ? new Date(dateStr) : new Date();
+  targetDate.setHours(0, 0, 0, 0);
 
   const expenses = await prisma.dailyExpense.findMany({
-    where: { date: today },
+    where: { date: targetDate },
     include: { user: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });

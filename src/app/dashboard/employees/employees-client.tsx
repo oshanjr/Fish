@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   UserCog,
@@ -36,11 +36,13 @@ export default function EmployeesClient({
   initialAttendance,
   staffList,
   initialPayroll,
+  initialDateStr,
 }: {
   initialEmployees: EmployeeEntry[];
   initialAttendance: AttendanceEntry[];
   staffList: { id: string; name: string }[];
   initialPayroll: PayrollEntry[];
+  initialDateStr?: string;
 }) {
   const router = useRouter();
   // Employee state
@@ -57,20 +59,28 @@ export default function EmployeesClient({
   const [employeeError, setEmployeeError] = useState("");
 
   // Attendance state
-  const [attendance, setAttendance] = useState<AttendanceEntry[]>(
-    staffList.map((staff) => {
-      const existing = initialAttendance.find((a) => a.employeeId === staff.id);
-      return {
-        employeeId: staff.id,
-        employeeName: staff.name,
-        status: existing ? existing.status : ("ABSENT" as const),
-        inTime: existing?.inTime,
-        outTime: existing?.outTime,
-        hoursWorked: existing?.hoursWorked,
-        earnedPay: existing?.earnedPay,
-      };
-    })
-  );
+  const todayString = new Date().toISOString().split("T")[0];
+  const activeDate = initialDateStr || todayString;
+
+  const [attendance, setAttendance] = useState<AttendanceEntry[]>([]);
+
+  useEffect(() => {
+    setAttendance(
+      staffList.map((staff) => {
+        const existing = initialAttendance.find((a) => a.employeeId === staff.id);
+        return {
+          employeeId: staff.id,
+          employeeName: staff.name,
+          status: existing ? existing.status : ("ABSENT" as const),
+          inTime: existing?.inTime,
+          outTime: existing?.outTime,
+          hoursWorked: existing?.hoursWorked,
+          earnedPay: existing?.earnedPay,
+        };
+      })
+    );
+  }, [initialAttendance, staffList]);
+
   const [attendanceMessage, setAttendanceMessage] = useState("");
   
   const [customAttendanceModal, setCustomAttendanceModal] = useState(false);
@@ -228,7 +238,7 @@ export default function EmployeesClient({
 
     startTransition(async () => {
       try {
-        await saveAttendance(attendance);
+        await saveAttendance(attendance, activeDate);
         setAttendanceMessage("Attendance saved successfully.");
       } catch {
         setAttendanceMessage("Failed to save attendance.");
@@ -239,16 +249,33 @@ export default function EmployeesClient({
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <UserCog className="w-5 h-5 text-indigo-500" />
-          <h1 className="text-xl font-bold text-slate-800">
-            Employee Management
-          </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <UserCog className="w-5 h-5 text-indigo-500" />
+            <h1 className="text-xl font-bold text-slate-800">
+              Employee Management
+            </h1>
+          </div>
+          <p className="text-sm text-slate-500">
+            Manage staff, mark attendance, and handle payroll
+          </p>
         </div>
-        <p className="text-sm text-slate-500">
-          Manage staff, mark attendance, and handle payroll
-        </p>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-600">Date:</label>
+          <input
+            type="date"
+            value={activeDate}
+            onChange={(e) => {
+              if (e.target.value) {
+                router.push(`?date=${e.target.value}`);
+              } else {
+                router.push(`?date=${todayString}`);
+              }
+            }}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"
+          />
+        </div>
       </div>
 
       <Tabs defaultValue="employees" className="w-full">
@@ -428,7 +455,7 @@ export default function EmployeesClient({
           <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 max-w-2xl">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-sm font-semibold text-slate-700">
-                Mark Today&apos;s Attendance
+                Mark Attendance for {activeDate}
               </h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
                 {attendance.filter((a) => a.status === "PRESENT").length + attendance.filter((a) => a.status === "HALF_DAY").length * 0.5} Present

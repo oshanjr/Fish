@@ -1,18 +1,29 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCw, CloudLightning, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { syncToHub } from "@/lib/actions/sync";
 import type { SyncHistoryEntry } from "@/types";
 
 export default function HubSyncClient({
   initialHistory,
+  initialDateStr,
 }: {
   initialHistory: SyncHistoryEntry[];
+  initialDateStr?: string;
 }) {
+  const router = useRouter();
   const [history, setHistory] = useState(initialHistory);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+
+  const todayString = new Date().toISOString().split("T")[0];
+  const activeDate = initialDateStr || "";
+
+  useEffect(() => {
+    setHistory(initialHistory);
+  }, [initialHistory]);
 
   const pendingSyncs = history.filter((h) => !h.isSyncedWithHub);
 
@@ -41,14 +52,31 @@ export default function HubSyncClient({
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <RefreshCw className="w-5 h-5 text-emerald-500" />
-          <h1 className="text-xl font-bold text-slate-800">Hub Sync</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <RefreshCw className="w-5 h-5 text-emerald-500" />
+            <h1 className="text-xl font-bold text-slate-800">Hub Sync</h1>
+          </div>
+          <p className="text-sm text-slate-500">
+            Synchronize your daily summaries with the central admin hub.
+          </p>
         </div>
-        <p className="text-sm text-slate-500">
-          Synchronize your daily summaries with the central admin hub.
-        </p>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-600">Date:</label>
+          <input
+            type="date"
+            value={activeDate}
+            onChange={(e) => {
+              if (e.target.value) {
+                router.push(`?date=${e.target.value}`);
+              } else {
+                router.push(`?date=${todayString}`);
+              }
+            }}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 transition-all"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

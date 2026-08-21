@@ -5,10 +5,15 @@ import { getTodaysAttendance, getStaffList } from "@/lib/actions/attendance";
 import { getAllPayroll } from "@/lib/actions/payroll";
 import EmployeesClient from "./employees-client";
 
-export default async function EmployeesPage() {
+export default async function EmployeesPage(props: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const searchParams = props.searchParams ? await props.searchParams : {};
+  const dateStr = typeof searchParams.date === "string" ? searchParams.date : undefined;
+
   const [employees, attendance, staffList, payroll] = await Promise.all([
     getAllEmployees(),
-    getTodaysAttendance(),
+    getTodaysAttendance(dateStr),
     getStaffList(),
     getAllPayroll(),
   ]);
@@ -19,6 +24,7 @@ export default async function EmployeesPage() {
       initialAttendance={attendance}
       staffList={staffList}
       initialPayroll={payroll}
+      initialDateStr={dateStr}
     />
   );
 }
