@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { addExpense, deleteExpense } from "@/lib/actions/expenses";
 import { saveDaySummary } from "@/lib/actions/summary";
-import { issueAdvanceByEmployeeId } from "@/lib/actions/payroll";
+import { issueAdvanceByEmployeeId, addPayrollBonus } from "@/lib/actions/payroll";
 import { EXPENSE_CATEGORIES } from "@/types";
 import { expenseSchema, posSalesSchema } from "@/lib/validations";
 
@@ -36,7 +36,7 @@ export default function DailyOpsClient({
   const router = useRouter();
   const [expenses, setExpenses] = useState(initialExpenses);
   const [isPendingExpense, startTransitionExpense] = useTransition();
-  const [expenseForm, setExpenseForm] = useState({ category: "", amount: "" });
+  const [expenseForm, setExpenseForm] = useState({ category: "", amount: "", description: "" });
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [expenseError, setExpenseError] = useState("");
 
@@ -75,27 +75,50 @@ export default function DailyOpsClient({
 
     startTransitionExpense(async () => {
       try {
-        if (expenseForm.category === "Salary Advance") {
+        const isPayrollRelated = ["Salary Advance", "Bonus", "Sunday Payment"].includes(expenseForm.category);
+        if (isPayrollRelated) {
           if (!selectedEmployeeId) {
-            setExpenseError("Please select an employee for the salary advance.");
+            setExpenseError(`Please select an employee for the ${expenseForm.category.toLowerCase()}.`);
             return;
           }
-          const result = await issueAdvanceByEmployeeId(selectedEmployeeId, amount, activeDate);
-          if (result.success) {
-            // Expenses will re-fetch due to revalidatePath, but we can also optimistically update
-            // if we really wanted. For now, since revalidatePath happens, we might not need to manually push to setExpenses.
-            // Wait, we do manual update for generic expense below, let's do it for advance too:
-            setExpenses((prev) => [
-              {
-                id: `temp-${Date.now()}`,
-                category: `Salary Advance - ${employees.find(e => e.id === selectedEmployeeId)?.name}`,
-                amount: amount,
-                loggedByName: "You",
-              },
-              ...prev,
-            ]);
-            setExpenseForm({ category: "", amount: "" });
-            setSelectedEmployeeId("");
+          
+          if (expenseForm.category === "Salary Advance") {
+            const result = await issueAdvanceByEmployeeId(selectedEmployeeId, amount, activeDate);
+            if (result.success) {
+              setExpenses((prev) => [
+                {
+                  id: `temp-${Date.now()}`,
+                  category: `Salary Advance - ${employees.find(e => e.id === selectedEmployeeId)?.name}`,
+                  amount: amount,
+                  loggedByName: "You",
+                },
+                ...prev,
+              ]);
+              setExpenseForm({ category: "", amount: "", description: "" });
+              setSelectedEmployeeId("");
+            }
+          } else {
+            const desc = expenseForm.category === "Sunday Payment" ? "Sunday Payment" : (expenseForm.description || "Bonus");
+            const result = await addPayrollBonus({
+              employeeId: selectedEmployeeId,
+              amount: amount,
+              description: desc,
+              date: activeDate,
+            });
+            
+            if (result.success) {
+              setExpenses((prev) => [
+                {
+                  id: `temp-${Date.now()}`,
+                  category: `Bonus: ${desc} - ${employees.find(e => e.id === selectedEmployeeId)?.name}`,
+                  amount: amount,
+                  loggedByName: "You",
+                },
+                ...prev,
+              ]);
+              setExpenseForm({ category: "", amount: "", description: "" });
+              setSelectedEmployeeId("");
+            }
           }
         } else {
           const result = await addExpense({ ...data, date: activeDate });
@@ -109,7 +132,7 @@ export default function DailyOpsClient({
               },
               ...prev,
             ]);
-            setExpenseForm({ category: "", amount: "" });
+            setExpenseForm({ category: "", amount: "", description: "" });
           }
         }
       } catch {
@@ -293,7 +316,7 @@ export default function DailyOpsClient({
                 </select>
               </div>
 
-              {expenseForm.category === "Salary Advance" && (
+              {["Salary Advance", "Bonus", "Sunday Payment"].includes(expenseForm.category) && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">
                     Select Employee
@@ -310,6 +333,26 @@ export default function DailyOpsClient({
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {expenseForm.category === "Bonus" && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Performance Bonus"
+                    value={expenseForm.description}
+                    onChange={(e) =>
+                      setExpenseForm({
+                        ...expenseForm,
+                        description: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-pink-400/30 focus:border-pink-400 transition-all"
+                  />
                 </div>
               )}
 

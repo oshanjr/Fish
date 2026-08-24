@@ -104,6 +104,8 @@ export interface SyncHistoryEntry {
 // Expense categories available for logging
 export const EXPENSE_CATEGORIES = [
   "Salary Advance",
+  "Bonus",
+  "Sunday Payment",
   "Ice",
   "Transport",
   "Tea",
