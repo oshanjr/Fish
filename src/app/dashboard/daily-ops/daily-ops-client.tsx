@@ -8,11 +8,13 @@ import {
   Loader2,
   Trash2,
   Plus,
+  Settings,
+  X,
 } from "lucide-react";
 import { addExpense, deleteExpense } from "@/lib/actions/expenses";
 import { saveDaySummary } from "@/lib/actions/summary";
 import { issueAdvanceByEmployeeId, addPayrollBonus } from "@/lib/actions/payroll";
-import { EXPENSE_CATEGORIES } from "@/types";
+import { addExpenseCategory, deleteExpenseCategory } from "@/lib/actions/expense-categories";
 import { expenseSchema, posSalesSchema } from "@/lib/validations";
 
 interface Expense {
@@ -27,11 +29,15 @@ export default function DailyOpsClient({
   initialSummary,
   employees,
   initialDateStr,
+  categories,
+  isManager,
 }: {
   initialExpenses: Expense[];
   initialSummary: any;
   employees: { id: string; name: string }[];
   initialDateStr?: string;
+  categories: { id: string; name: string; isSystem: boolean }[];
+  isManager: boolean;
 }) {
   const router = useRouter();
   const [expenses, setExpenses] = useState(initialExpenses);
@@ -39,6 +45,11 @@ export default function DailyOpsClient({
   const [expenseForm, setExpenseForm] = useState({ category: "", amount: "", description: "" });
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [expenseError, setExpenseError] = useState("");
+
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryError, setCategoryError] = useState("");
+  const [isPendingCategory, startTransitionCategory] = useTransition();
 
   const [posForm, setPosForm] = useState({
     cashSales: initialSummary.cashSales > 0 ? initialSummary.cashSales.toString() : "",
@@ -148,6 +159,28 @@ export default function DailyOpsClient({
         setExpenses((prev) => prev.filter((exp) => exp.id !== id));
       } catch {
         setExpenseError("Failed to delete expense.");
+      }
+    });
+  };
+
+  const handleAddCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCategoryError("");
+    startTransitionCategory(async () => {
+      const res = await addExpenseCategory(newCategoryName);
+      if (res.success) {
+        setNewCategoryName("");
+      } else {
+        setCategoryError(res.error || "Failed to add category");
+      }
+    });
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    startTransitionCategory(async () => {
+      const res = await deleteExpenseCategory(id);
+      if (!res.success) {
+        setCategoryError(res.error || "Failed to delete category");
       }
     });
   };
@@ -294,9 +327,20 @@ export default function DailyOpsClient({
 
             <form onSubmit={handleAddExpense} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  Category
-                </label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-medium text-slate-600">
+                    Category
+                  </label>
+                  {isManager && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryModal(true)}
+                      className="text-xs text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                    >
+                      <Settings className="w-3 h-3" /> Manage
+                    </button>
+                  )}
+                </div>
                 <select
                   value={expenseForm.category}
                   onChange={(e) =>
@@ -308,9 +352,9 @@ export default function DailyOpsClient({
                   className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-pink-400/30 focus:border-pink-400 transition-all"
                 >
                   <option value="">Select category</option>
-                  {EXPENSE_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.name}
                     </option>
                   ))}
                 </select>
@@ -467,6 +511,76 @@ export default function DailyOpsClient({
           </div>
         </div>
       </div>
+
+      {/* Category Management Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-800">Manage Categories</h3>
+              <button
+                onClick={() => setShowCategoryModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {categoryError && (
+                <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm border border-red-100">
+                  {categoryError}
+                </div>
+              )}
+              
+              <form onSubmit={handleAddCategory} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="New category name..."
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                />
+                <button
+                  type="submit"
+                  disabled={isPendingCategory || !newCategoryName.trim()}
+                  className="px-4 py-2 bg-indigo-500 text-white text-sm font-semibold rounded-lg hover:bg-indigo-600 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {isPendingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Add
+                </button>
+              </form>
+
+              <div className="border border-slate-100 rounded-lg max-h-[300px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-slate-100">
+                    {categories.map((cat) => (
+                      <tr key={cat.id} className="hover:bg-slate-50/50">
+                        <td className="px-4 py-2.5 font-medium text-slate-700 flex items-center gap-2">
+                          {cat.name}
+                          {cat.isSystem && (
+                            <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">System</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right w-16">
+                          {!cat.isSystem && (
+                            <button
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              disabled={isPendingCategory}
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

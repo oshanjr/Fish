@@ -191,3 +191,12 @@ model FishType {
 
   @@map("fish_types")
 }
+
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("expense_categories")
+}

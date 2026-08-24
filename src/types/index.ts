@@ -101,22 +101,7 @@ export interface SyncHistoryEntry {
   isSyncedWithHub: boolean;
 }
 
-// Expense categories available for logging
-export const EXPENSE_CATEGORIES = [
-  "Salary Advance",
-  "Bonus",
-  "Sunday Payment",
-  "Ice",
-  "Transport",
-  "Tea",
-  "Fuel",
-  "Meals",
-  "Electricity",
-  "Packaging",
-  "Other",
-] as const;
-
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+// Expense categories are now dynamic and stored in the database
 
 
 
