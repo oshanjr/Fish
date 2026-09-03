@@ -40,6 +40,9 @@ export default function ContactDetailClient({
     amountPaid: "",
   });
 
+  const [transactionDate, setTransactionDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
   const [formError, setFormError] = useState("");
 
   const isSupplier = contact.type === "SUPPLIER";
@@ -89,6 +92,7 @@ export default function ContactDetailClient({
       contactId: contact.id,
       description: finalDescription,
       amount: finalAmount,
+      date: transactionDate,
     };
 
     const validation = contactTransactionSchema.safeParse(data);
@@ -111,6 +115,7 @@ export default function ContactDetailClient({
                 contactId: contact.id,
                 description: `Payment for ${calcForm.fishType} (${calcForm.weight}kg)`,
                 amount: -amountPaidNum,
+                date: transactionDate,
               });
               if (paymentResult.success) {
                 addedTxs.unshift(paymentResult.data);
@@ -297,6 +302,20 @@ export default function ContactDetailClient({
             )}
 
             <form onSubmit={handleAddTransaction} className="space-y-4">
+              {/* Date Picker */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={transactionDate}
+                  onChange={(e) => setTransactionDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 transition-all"
+                  max={new Date().toISOString().split("T")[0]}
+                />
+              </div>
+
               {/* Type Toggle */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">

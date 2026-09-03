@@ -4,10 +4,17 @@ import { getAllEmployees } from "@/lib/actions/employees";
 import { getTodaysAttendance, getStaffList } from "@/lib/actions/attendance";
 import { getAllPayroll } from "@/lib/actions/payroll";
 import EmployeesClient from "./employees-client";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 
 export default async function EmployeesPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  const session = await auth();
+  if (session?.user?.role !== "MANAGER") {
+    redirect("/dashboard");
+  }
+
   const searchParams = props.searchParams ? await props.searchParams : {};
   const dateStr = typeof searchParams.date === "string" ? searchParams.date : undefined;
 

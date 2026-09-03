@@ -1,7 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { attendanceSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import type { AttendanceEntry } from "@/types";
 
 export async function getStaffList() {
@@ -36,6 +38,14 @@ export async function getTodaysAttendance(dateStr?: string) {
 }
 
 export async function saveAttendance(entries: AttendanceEntry[], dateStr?: string) {
+  const session = await auth();
+  if (session?.user?.role !== "MANAGER") {
+    throw new Error("Forbidden: Only managers can manage attendance");
+  }
+
+  // Validate all entries
+  attendanceSchema.parse({ entries });
+
   const targetDate = dateStr ? new Date(dateStr) : new Date();
   targetDate.setHours(0, 0, 0, 0);
 

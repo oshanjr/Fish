@@ -1,6 +1,7 @@
 "use server";
 
 import { signIn as nextAuthSignIn } from "@/auth";
+import { loginSchema } from "@/lib/validations";
 import { AuthError } from "next-auth";
 
 export async function authenticate(
@@ -8,9 +9,18 @@ export async function authenticate(
   formData: FormData
 ) {
   try {
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    // Server-side validation
+    const result = loginSchema.safeParse({ email, password });
+    if (!result.success) {
+      return result.error.issues[0].message;
+    }
+
     await nextAuthSignIn("credentials", {
-      email: formData.get("email"),
-      password: formData.get("password"),
+      email: result.data.email,
+      password: result.data.password,
       redirectTo: "/dashboard",
     });
   } catch (error) {

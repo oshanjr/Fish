@@ -602,11 +602,15 @@ export default function EmployeesClient({
                 Phone Number (Login ID)
               </label>
               <input
-                type="text"
+                type="tel"
                 value={employeeForm.phone}
                 onChange={(e) =>
                   setEmployeeForm({ ...employeeForm, phone: e.target.value })
                 }
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.value = input.value.replace(/[^0-9+\-\s()]/g, "");
+                }}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"
                 placeholder="07X XXX XXXX"
               />
@@ -637,6 +641,11 @@ export default function EmployeesClient({
                 onChange={(e) =>
                   setEmployeeForm({ ...employeeForm, nic: e.target.value })
                 }
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.value = input.value.replace(/[^0-9vVxX]/g, "");
+                }}
+                maxLength={12}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"
                 placeholder="XXXXXXXXX V or XXXXXXXXXXXX"
               />

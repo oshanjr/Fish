@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addEpfEtfRecord, deleteEpfEtfRecord } from "@/lib/actions/epf-etf";
+import { epfEtfSchema } from "@/lib/validations";
 import { 
   Building2, 
   Trash2, 
@@ -64,14 +65,22 @@ export default function EpfEtfClient({
     const epf = parseFloat(form.epfAmount) || 0;
     const etf = parseFloat(form.etfAmount) || 0;
 
+    const validationData = {
+      employeeId: form.employeeId,
+      month: currentMonth,
+      epfAmount: epf,
+      etfAmount: etf,
+    };
+
+    const validation = epfEtfSchema.safeParse(validationData);
+    if (!validation.success) {
+      setError(validation.error.issues[0].message);
+      return;
+    }
+
     startTransition(async () => {
       try {
-        const result = await addEpfEtfRecord({
-          employeeId: form.employeeId,
-          month: currentMonth,
-          epfAmount: epf,
-          etfAmount: etf,
-        });
+        const result = await addEpfEtfRecord(validationData);
 
         if (result.success) {
           setSuccessMsg("Record added successfully!");
@@ -287,14 +296,17 @@ export default function EpfEtfClient({
                         <td className="px-5 py-3 text-right font-semibold text-slate-800">
                           {(record.epfAmount + record.etfAmount).toLocaleString("en-LK", {minimumFractionDigits: 2})}
                         </td>
-                        <td className="px-5 py-3 text-right">
-                          <button
-                            onClick={() => handleDelete(record.id)}
-                            disabled={isPending}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <td className="px-5 py-4 text-right">
+                          {userRole === "MANAGER" && (
+                            <button
+                              onClick={() => handleDelete(record.id)}
+                              disabled={isPending}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
+                              title="Delete Record"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

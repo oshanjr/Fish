@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { epfEtfSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 
@@ -11,28 +12,30 @@ export async function addEpfEtfRecord(data: {
   etfAmount: number;
 }) {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
+  if (session?.user?.role !== "MANAGER") {
+    throw new Error("Forbidden: Only managers can add EPF/ETF records");
   }
+
+  const validated = epfEtfSchema.parse(data);
 
   // Use upsert to allow overwriting if they log the same month again
   const record = await prisma.epfEtfRecord.upsert({
     where: {
       employeeId_month: {
-        employeeId: data.employeeId,
-        month: data.month,
+        employeeId: validated.employeeId,
+        month: validated.month,
       },
     },
     update: {
-      epfAmount: data.epfAmount,
-      etfAmount: data.etfAmount,
+      epfAmount: validated.epfAmount,
+      etfAmount: validated.etfAmount,
       loggedBy: session.user.id,
     },
     create: {
-      employeeId: data.employeeId,
-      month: data.month,
-      epfAmount: data.epfAmount,
-      etfAmount: data.etfAmount,
+      employeeId: validated.employeeId,
+      month: validated.month,
+      epfAmount: validated.epfAmount,
+      etfAmount: validated.etfAmount,
       loggedBy: session.user.id,
     },
   });
@@ -65,8 +68,8 @@ export async function getEpfEtfRecordsByMonth(month: string) {
 
 export async function deleteEpfEtfRecord(id: string) {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
+  if (session?.user?.role !== "MANAGER") {
+    throw new Error("Forbidden: Only managers can delete EPF/ETF records");
   }
 
   await prisma.epfEtfRecord.delete({ where: { id } });

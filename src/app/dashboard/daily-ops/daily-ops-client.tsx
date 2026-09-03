@@ -31,6 +31,7 @@ export default function DailyOpsClient({
   initialDateStr,
   categories,
   isManager,
+  userRole,
 }: {
   initialExpenses: Expense[];
   initialSummary: any;
@@ -38,6 +39,7 @@ export default function DailyOpsClient({
   initialDateStr?: string;
   categories: { id: string; name: string; isSystem: boolean }[];
   isManager: boolean;
+  userRole: string;
 }) {
   const router = useRouter();
   const [expenses, setExpenses] = useState(initialExpenses);
@@ -494,13 +496,15 @@ export default function DailyOpsClient({
                           })}
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <button
-                            onClick={() => handleDeleteExpense(expense.id)}
-                            disabled={isPendingExpense}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {userRole === "MANAGER" && (
+                            <button
+                              onClick={() => handleDeleteExpense(expense.id)}
+                              disabled={isPendingExpense}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -562,7 +566,7 @@ export default function DailyOpsClient({
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-right w-16">
-                          {!cat.isSystem && (
+                          {userRole === "MANAGER" && !cat.isSystem && (
                             <button
                               onClick={() => handleDeleteCategory(cat.id)}
                               disabled={isPendingCategory}

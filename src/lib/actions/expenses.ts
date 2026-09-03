@@ -54,6 +54,11 @@ export async function getTodaysExpenses(dateStr?: string) {
 }
 
 export async function deleteExpense(id: string) {
+  const session = await auth();
+  if (session?.user?.role !== "MANAGER") {
+    throw new Error("Forbidden: Only managers can delete records");
+  }
+  
   await prisma.dailyExpense.delete({ where: { id } });
   revalidatePath("/dashboard/daily-ops");
   revalidatePath("/dashboard/evening-closing");

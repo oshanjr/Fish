@@ -35,10 +35,12 @@ export default function MorningIntakeClient({
   initialLogs,
   fishTypes: initialFishTypes,
   initialDateStr,
+  userRole,
 }: {
   initialLogs: InventoryLog[];
   fishTypes: FishTypeModel[];
   initialDateStr?: string;
+  userRole: string;
 }) {
   const router = useRouter();
   const [logs, setLogs] = useState(initialLogs);
@@ -477,13 +479,15 @@ export default function MorningIntakeClient({
                       )}
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <button
-                        onClick={() => handleDelete(log.id)}
-                        disabled={isPending}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {userRole === "MANAGER" && (
+                        <button
+                          onClick={() => handleDelete(log.id)}
+                          disabled={isPending}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

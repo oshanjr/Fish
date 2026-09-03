@@ -1,7 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { expenseCategorySchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 
 export async function getExpenseCategories() {
   const categories = await prisma.expenseCategory.findMany({
@@ -15,11 +17,8 @@ export async function getExpenseCategories() {
 
 export async function addExpenseCategory(name: string) {
   try {
-    if (!name || name.trim() === "") {
-      throw new Error("Category name is required");
-    }
-
-    const trimmedName = name.trim();
+    const validated = expenseCategorySchema.parse({ name });
+    const trimmedName = validated.name;
 
     // Check if it already exists
     const existing = await prisma.expenseCategory.findUnique({
@@ -46,6 +45,11 @@ export async function addExpenseCategory(name: string) {
 
 export async function deleteExpenseCategory(id: string) {
   try {
+    const session = await auth();
+    if (session?.user?.role !== "MANAGER") {
+      throw new Error("Forbidden: Only managers can delete categories");
+    }
+
     const category = await prisma.expenseCategory.findUnique({
       where: { id },
     });

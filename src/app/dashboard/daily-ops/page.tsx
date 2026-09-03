@@ -43,6 +43,19 @@ export default async function DailyOpsPage(props: {
 
   const session = await auth();
   const isManager = session?.user?.role === "MANAGER";
+  const role = session?.user?.role;
 
-  return <DailyOpsClient initialExpenses={expenses} initialSummary={summary} employees={employees} initialDateStr={dateStr} categories={categories} isManager={isManager} />;
+  return (
+    <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <DailyOpsClient
+        initialExpenses={expenses}
+        initialSummary={summary}
+        employees={employees}
+        initialDateStr={dateStr}
+        categories={categories}
+        isManager={isManager}
+        userRole={role}
+      />
+    </div>
+  );
 }

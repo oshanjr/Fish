@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { fishIntakeSchema, wastageSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 
 export async function createFishIntake(data: {
   date?: string;
@@ -90,6 +91,11 @@ export async function updateWastage(data: {
 }
 
 export async function deleteInventoryLog(id: string) {
+  const session = await auth();
+  if (session?.user?.role !== "MANAGER") {
+    throw new Error("Forbidden: Only managers can delete records");
+  }
+  
   await prisma.fishInventoryLog.delete({ where: { id } });
   revalidatePath("/dashboard/morning-intake");
   revalidatePath("/dashboard/evening-closing");

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { updatePayrollAdvance, addPayrollBonus } from "@/lib/actions/payroll";
-import { payrollUpdateSchema } from "@/lib/validations";
+import { payrollUpdateSchema, bonusUpdateSchema } from "@/lib/validations";
 
 type EmployeeData = {
   id: string;
@@ -136,7 +136,14 @@ export default function EmployeeDetailClient({
     if (!payroll) return;
 
     const amount = parseFloat(bonusAmount);
-    const data = { employeeId: employee.id, amount, description: bonusDescription || "Bonus", date: bonusDate };
+    const description = bonusDescription || "Bonus";
+    const data = { employeeId: employee.id, amount, description, date: bonusDate };
+
+    const validation = bonusUpdateSchema.safeParse(data);
+    if (!validation.success) {
+      setMessage(validation.error.issues[0].message);
+      return;
+    }
 
     startTransition(async () => {
       try {
@@ -183,6 +190,12 @@ export default function EmployeeDetailClient({
 
     const amount = parseFloat(sundayAmount);
     const data = { employeeId: employee.id, amount, description: "Sunday Payment", date: sundayDate };
+
+    const validation = bonusUpdateSchema.safeParse(data);
+    if (!validation.success) {
+      setMessage(validation.error.issues[0].message);
+      return;
+    }
 
     startTransition(async () => {
       try {

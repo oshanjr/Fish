@@ -11,7 +11,7 @@ export default async function EpfEtfPage(props: {
   const userRole = session?.user?.role;
 
   // Only manager/supervisor
-  if (userRole !== "MANAGER" && userRole !== "SUPERVISOR") {
+  if (session?.user?.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

@@ -325,9 +325,13 @@ export default function ContactsClient({
                 Phone Number
               </label>
               <input
-                type="text"
+                type="tel"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.value = input.value.replace(/[^0-9+\-\s()]/g, "");
+                }}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 transition-all"
                 placeholder="07X XXX XXXX"
               />

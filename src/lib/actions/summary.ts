@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { daySummarySchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 
 export async function computeDailySummary(dateStr?: string) {
@@ -65,9 +66,11 @@ export async function computeDailySummary(dateStr?: string) {
 }
 
 export async function saveDaySummary(data: { cashSales: number; cardSales: number; date?: string }) {
-  const targetDate = data.date ? new Date(data.date) : new Date();
+  const validated = daySummarySchema.parse(data);
+
+  const targetDate = validated.date ? new Date(validated.date) : new Date();
   targetDate.setHours(0, 0, 0, 0);
-  const totalPosSales = data.cashSales + data.cardSales;
+  const totalPosSales = validated.cashSales + validated.cardSales;
 
   // We need to calculate targetDate'S costs to save in the DB
   const todayInventory = await prisma.fishInventoryLog.findMany({
@@ -95,8 +98,8 @@ export async function saveDaySummary(data: { cashSales: number; cardSales: numbe
     where: { date: targetDate },
     update: {
       totalPosSales,
-      cashSales: data.cashSales,
-      cardSales: data.cardSales,
+      cashSales: validated.cashSales,
+      cardSales: validated.cardSales,
       totalBuyingCost: Math.round(todayBuyingCost * 100) / 100,
       calculatedExpenses: Math.round(todayCalculatedExpenses * 100) / 100,
       calculatedWastageCost: 0,
@@ -105,8 +108,8 @@ export async function saveDaySummary(data: { cashSales: number; cardSales: numbe
     create: {
       date: targetDate,
       totalPosSales,
-      cashSales: data.cashSales,
-      cardSales: data.cardSales,
+      cashSales: validated.cashSales,
+      cardSales: validated.cardSales,
       totalBuyingCost: Math.round(todayBuyingCost * 100) / 100,
       calculatedExpenses: Math.round(todayCalculatedExpenses * 100) / 100,
       calculatedWastageCost: 0,
@@ -156,8 +159,8 @@ export async function saveDaySummary(data: { cashSales: number; cardSales: numbe
     success: true, 
     data: {
       totalPosSales,
-      cashSales: data.cashSales,
-      cardSales: data.cardSales,
+      cashSales: validated.cashSales,
+      cardSales: validated.cardSales,
       weeklyTotalPosSales: Math.round(weekPosSales * 100) / 100,
       totalBuyingCost: Math.round(weekBuyingCost * 100) / 100,
       calculatedExpenses: Math.round(weekCalculatedExpenses * 100) / 100,
@@ -184,6 +187,8 @@ export async function getSyncHistory(dateStr?: string) {
   return summaries.map((s) => ({
     ...s,
     totalPosSales: Number(s.totalPosSales),
+    cashSales: Number(s.cashSales),
+    cardSales: Number(s.cardSales),
     calculatedExpenses: Number(s.calculatedExpenses),
     calculatedWastageCost: Number(s.calculatedWastageCost),
     totalBuyingCost: Number(s.totalBuyingCost),

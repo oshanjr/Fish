@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { fishTypeSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 
 export async function getFishTypes() {
@@ -11,12 +12,10 @@ export async function getFishTypes() {
 }
 
 export async function addFishType(name: string) {
-  if (!name || name.trim().length === 0) {
-    throw new Error("Fish type name cannot be empty");
-  }
+  const validated = fishTypeSchema.parse({ name });
 
   const newType = await prisma.fishType.create({
-    data: { name: name.trim() },
+    data: { name: validated.name },
   });
 
   revalidatePath("/dashboard/morning-intake");

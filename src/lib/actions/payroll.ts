@@ -23,82 +23,92 @@ export async function getAllPayroll() {
   }));
 }
 
-export async function updatePayrollAdvance(data: {
-  id: string;
-  advanceTaken: number;
-  date?: string;
-}) {
-  const validated = payrollUpdateSchema.parse(data);
-
-  const current = await prisma.staffPayroll.findUnique({
-    where: { id: validated.id },
-    include: { employee: { select: { baseSalary: true, name: true } } },
-  });
-
-  if (!current) {
-    throw new Error("Staff member not found");
-  }
-
-  const newAdvanceTotal = Number(current.advanceTaken) + validated.advanceTaken;
-  // Balance Owed = Base Salary + Earned Salary - Advances Taken
-  const newBalance = Number(current.employee.baseSalary) + Number(current.earnedSalary) - newAdvanceTotal;
-
-  const updated = await prisma.staffPayroll.update({
-    where: { id: validated.id },
-    data: {
-      advanceTaken: newAdvanceTotal,
-      balanceOwed: newBalance,
-    },
-  });
-
-  // Auto-log salary advance as a daily expense
-  if (validated.advanceTaken > 0) {
+export async function updatePayrollAdvance(data: any) {
+  try {
     const session = await auth();
-    const userId = session?.user?.id;
+    if (session?.user?.role !== "MANAGER") {
+      throw new Error("Forbidden: Only managers can update payroll");
+    }
 
-    if (userId) {
-      const targetDate = data.date ? new Date(data.date) : new Date();
-      targetDate.setHours(0, 0, 0, 0);
+    const validated = payrollUpdateSchema.parse(data);
 
-      try {
-        const userExists = await prisma.user.findUnique({
-          where: { id: userId },
-        });
+    const current = await prisma.staffPayroll.findUnique({
+      where: { id: validated.id },
+      include: { employee: { select: { baseSalary: true, name: true } } },
+    });
 
-        if (userExists) {
-          await prisma.dailyExpense.create({
-            data: {
-              date: targetDate,
-              category: `Salary Advance - ${current.employee.name}`,
-              amount: validated.advanceTaken,
-              loggedBy: userId,
-            },
+    if (!current) {
+      throw new Error("Staff member not found");
+    }
+
+    const newAdvanceTotal = Number(current.advanceTaken) + validated.advanceTaken;
+    // Balance Owed = Base Salary + Earned Salary - Advances Taken
+    const newBalance = Number(current.employee.baseSalary) + Number(current.earnedSalary) - newAdvanceTotal;
+
+    const updated = await prisma.staffPayroll.update({
+      where: { id: validated.id },
+      data: {
+        advanceTaken: newAdvanceTotal,
+        balanceOwed: newBalance,
+      },
+    });
+
+    // Auto-log salary advance as a daily expense
+    if (validated.advanceTaken > 0) {
+      const session = await auth();
+      const userId = session?.user?.id;
+
+      if (userId) {
+        const targetDate = data.date ? new Date(data.date) : new Date();
+        targetDate.setHours(0, 0, 0, 0);
+
+        try {
+          const userExists = await prisma.user.findUnique({
+            where: { id: userId },
           });
+
+          if (userExists) {
+            await prisma.dailyExpense.create({
+              data: {
+                date: targetDate,
+                category: `Salary Advance - ${current.employee.name}`,
+                amount: validated.advanceTaken,
+                loggedBy: userId,
+              },
+            });
+          }
+        } catch (e) {
+          console.error("Failed to log daily expense for salary advance", e);
+          // We don't want to throw and crash the advance update if expense logging fails
         }
-      } catch (e) {
-        console.error("Failed to log daily expense for salary advance", e);
-        // We don't want to throw and crash the advance update if expense logging fails
       }
     }
-  }
 
-  revalidatePath("/dashboard/employees");
-  revalidatePath("/dashboard/daily-ops");
-  return {
-    success: true,
-    data: {
-      id: updated.id,
-      employeeId: updated.employeeId,
-      employeeName: current.employee.name,
-      baseSalary: Number(current.employee.baseSalary),
-      advanceTaken: Number(updated.advanceTaken),
-      bonusEarned: Number(updated.bonusEarned),
-      balanceOwed: Number(updated.balanceOwed),
-    },
-  };
+    revalidatePath("/dashboard/employees");
+    revalidatePath("/dashboard/daily-ops");
+    return {
+      success: true,
+      data: {
+        id: updated.id,
+        employeeId: updated.employeeId,
+        employeeName: current.employee.name,
+        baseSalary: Number(current.employee.baseSalary),
+        advanceTaken: Number(updated.advanceTaken),
+        bonusEarned: Number(updated.bonusEarned),
+        balanceOwed: Number(updated.balanceOwed),
+      },
+    };
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function resetPayrollAdvances() {
+  const session = await auth();
+  if (session?.user?.role !== "MANAGER") {
+    throw new Error("Forbidden: Only managers can update payroll");
+  }
+
   const payrolls = await prisma.staffPayroll.findMany({
     include: { employee: { select: { baseSalary: true } } }
   });
@@ -119,61 +129,65 @@ export async function resetPayrollAdvances() {
   return { success: true };
 }
 
-export async function addPayrollBonus(data: {
-  employeeId: string;
-  amount: number;
-  description: string;
-  date?: string;
-}) {
-  const validated = bonusUpdateSchema.parse(data);
-
-  const current = await prisma.staffPayroll.findUnique({
-    where: { employeeId: validated.employeeId },
-    include: { employee: { select: { name: true, baseSalary: true } } },
-  });
-
-  if (!current) {
-    throw new Error("Staff member not found");
-  }
-
-  const newBonusTotal = Number(current.bonusEarned) + validated.amount;
-  // Balance Owed = Base Salary + Earned Salary - Advances Taken (Bonuses are paid out immediately)
-  const newBalance = Number(current.employee.baseSalary) + Number(current.earnedSalary) - Number(current.advanceTaken);
-
-  await prisma.staffPayroll.update({
-    where: { employeeId: validated.employeeId },
-    data: {
-      bonusEarned: newBonusTotal,
-      balanceOwed: newBalance,
+export async function addPayrollBonus(data: any) {
+  try {
+    const session = await auth();
+    if (session?.user?.role !== "MANAGER") {
+      throw new Error("Forbidden: Only managers can update payroll");
     }
-  });
 
-  const session = await auth();
-  const userId = session?.user?.id;
+    const validated = bonusUpdateSchema.parse(data);
 
-  if (userId) {
-    const targetDate = data.date ? new Date(data.date) : new Date();
-    targetDate.setHours(0, 0, 0, 0);
-
-    const userExists = await prisma.user.findUnique({
-      where: { id: userId },
+    const current = await prisma.staffPayroll.findUnique({
+      where: { employeeId: validated.employeeId },
+      include: { employee: { select: { name: true, baseSalary: true } } },
     });
 
-    if (userExists) {
-      await prisma.dailyExpense.create({
-        data: {
-          date: targetDate,
-          category: `Bonus: ${validated.description} - ${current.employee.name}`,
-          amount: validated.amount,
-          loggedBy: userId,
-        },
-      });
+    if (!current) {
+      throw new Error("Staff member not found");
     }
-  }
 
-  revalidatePath("/dashboard/employees");
-  revalidatePath("/dashboard/daily-ops");
-  return { success: true };
+    const newBonusTotal = Number(current.bonusEarned) + validated.amount;
+    // Balance Owed = Base Salary + Earned Salary - Advances Taken (Bonuses are paid out immediately)
+    const newBalance = Number(current.employee.baseSalary) + Number(current.earnedSalary) - Number(current.advanceTaken);
+
+    await prisma.staffPayroll.update({
+      where: { employeeId: validated.employeeId },
+      data: {
+        bonusEarned: newBonusTotal,
+        balanceOwed: newBalance,
+      }
+    });
+
+    const sessionAuth = await auth();
+    const userId = sessionAuth?.user?.id;
+
+    if (userId) {
+      const targetDate = data.date ? new Date(data.date) : new Date();
+      targetDate.setHours(0, 0, 0, 0);
+
+      const userExists = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (userExists) {
+        await prisma.dailyExpense.create({
+          data: {
+            date: targetDate,
+            category: `Bonus: ${validated.description} - ${current.employee.name}`,
+            amount: validated.amount,
+            loggedBy: userId,
+          },
+        });
+      }
+    }
+
+    revalidatePath("/dashboard/employees");
+    revalidatePath("/dashboard/daily-ops");
+    return { success: true };
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function issueAdvanceByEmployeeId(employeeId: string, amount: number, dateStr?: string) {

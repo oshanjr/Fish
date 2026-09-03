@@ -48,8 +48,11 @@ export async function getMonthlyFinancials(year: number, month: number) {
       ...s,
       date: s.date.toISOString(),
       totalPosSales: Number(s.totalPosSales),
+      cashSales: Number(s.cashSales),
+      cardSales: Number(s.cardSales),
       totalBuyingCost: Number(s.totalBuyingCost),
       calculatedExpenses: Number(s.calculatedExpenses),
+      calculatedWastageCost: Number(s.calculatedWastageCost),
       netProfit: Number(s.netProfit),
     })),
     detailedExpenses: detailedExpenses.map(e => ({
