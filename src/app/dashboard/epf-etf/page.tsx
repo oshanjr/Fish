@@ -33,7 +33,7 @@ export default async function EpfEtfPage(props: {
         employees={employees} 
         records={records} 
         currentMonth={currentMonth}
-        userRole={userRole}
+        userRole={userRole ?? "EMPLOYEE"}
       />
     </div>
   );
