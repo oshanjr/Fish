@@ -54,7 +54,7 @@ export default async function DailyOpsPage(props: {
         initialDateStr={dateStr}
         categories={categories}
         isManager={isManager}
-        userRole={role}
+        userRole={role ?? "EMPLOYEE"}
       />
     </div>
   );
