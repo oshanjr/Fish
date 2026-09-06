@@ -76,7 +76,16 @@ export default function ManagerDashboardClient({
       icon: Users,
       gradient: "from-sky-500 to-blue-500",
       shadow: "shadow-sky-500/20",
-      roles: ["MANAGER"],
+      roles: ["MANAGER", "SUPERVISOR"],
+    },
+    {
+      title: "EPF / ETF",
+      description: "Staff monthly EPF & ETF contributions",
+      href: "/dashboard/epf-etf",
+      icon: Users,
+      gradient: "from-teal-500 to-emerald-500",
+      shadow: "shadow-teal-500/20",
+      roles: ["MANAGER", "SUPERVISOR"],
     },
     {
       title: "Employees",

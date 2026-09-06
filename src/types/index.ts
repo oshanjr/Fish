@@ -75,6 +75,12 @@ export interface ContactTransactionEntry {
   amount: number;
 }
 
+export interface ContactTransactionWithContact extends ContactTransactionEntry {
+  contactName: string;
+  contactType: ContactType;
+  createdAt: string;
+}
+
 export interface ContactDetailEntry extends ContactEntry {
   transactions: ContactTransactionEntry[];
 }

@@ -14,16 +14,27 @@ import {
   Banknote,
   Receipt,
   Calculator,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { addTransaction, deleteTransaction } from "@/lib/actions/contacts";
 import { contactTransactionSchema } from "@/lib/validations";
-import type { ContactDetailEntry } from "@/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import type { ContactDetailEntry, ContactTransactionEntry } from "@/types";
 
 export default function ContactDetailClient({
   contact: initialContact,
+  userRole,
 }: {
   contact: ContactDetailEntry;
+  userRole?: string;
 }) {
   const [contact, setContact] = useState(initialContact);
   const [isPending, startTransition] = useTransition();
@@ -38,12 +49,15 @@ export default function ContactDetailClient({
     weight: "",
     pricePerKg: "",
     amountPaid: "",
+    creditAmount: "",
   });
 
   const [transactionDate, setTransactionDate] = useState(
     new Date().toISOString().split("T")[0]
   );
   const [formError, setFormError] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [txToDelete, setTxToDelete] = useState<ContactTransactionEntry | null>(null);
 
   const isSupplier = contact.type === "SUPPLIER";
   const accentFrom = isSupplier ? "from-cyan-500" : "from-amber-500";
@@ -56,6 +70,96 @@ export default function ContactDetailClient({
     .filter((t) => t.amount < 0)
     .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
+  const handleAmountPaidChange = (val: string) => {
+    const total = (parseFloat(calcForm.weight) || 0) * (parseFloat(calcForm.pricePerKg) || 0);
+    const paid = parseFloat(val);
+
+    if (val === "") {
+      setCalcForm((prev) => ({ ...prev, amountPaid: "", creditAmount: "" }));
+      return;
+    }
+
+    if (!isNaN(paid) && total > 0) {
+      const remaining = Math.max(0, total - paid);
+      setCalcForm((prev) => ({
+        ...prev,
+        amountPaid: val,
+        creditAmount: remaining > 0 ? remaining.toFixed(2).replace(/\.00$/, "") : "0",
+      }));
+    } else {
+      setCalcForm((prev) => ({ ...prev, amountPaid: val }));
+    }
+  };
+
+  const handleCreditAmountChange = (val: string) => {
+    const total = (parseFloat(calcForm.weight) || 0) * (parseFloat(calcForm.pricePerKg) || 0);
+    const credit = parseFloat(val);
+
+    if (val === "") {
+      setCalcForm((prev) => ({ ...prev, creditAmount: "", amountPaid: "" }));
+      return;
+    }
+
+    if (!isNaN(credit) && total > 0) {
+      const remaining = Math.max(0, total - credit);
+      setCalcForm((prev) => ({
+        ...prev,
+        creditAmount: val,
+        amountPaid: remaining > 0 ? remaining.toFixed(2).replace(/\.00$/, "") : "0",
+      }));
+    } else {
+      setCalcForm((prev) => ({ ...prev, creditAmount: val }));
+    }
+  };
+
+  const handleWeightChange = (val: string) => {
+    const newWeight = parseFloat(val) || 0;
+    const price = parseFloat(calcForm.pricePerKg) || 0;
+    const total = newWeight * price;
+
+    setCalcForm((prev) => {
+      let newCredit = prev.creditAmount;
+      let newPaid = prev.amountPaid;
+      const paidNum = parseFloat(prev.amountPaid);
+      const creditNum = parseFloat(prev.creditAmount);
+
+      if (total > 0) {
+        if (!isNaN(paidNum) && prev.amountPaid !== "") {
+          const rem = Math.max(0, total - paidNum);
+          newCredit = rem > 0 ? rem.toFixed(2).replace(/\.00$/, "") : "0";
+        } else if (!isNaN(creditNum) && prev.creditAmount !== "") {
+          const rem = Math.max(0, total - creditNum);
+          newPaid = rem > 0 ? rem.toFixed(2).replace(/\.00$/, "") : "0";
+        }
+      }
+      return { ...prev, weight: val, creditAmount: newCredit, amountPaid: newPaid };
+    });
+  };
+
+  const handlePriceChange = (val: string) => {
+    const weight = parseFloat(calcForm.weight) || 0;
+    const newPrice = parseFloat(val) || 0;
+    const total = weight * newPrice;
+
+    setCalcForm((prev) => {
+      let newCredit = prev.creditAmount;
+      let newPaid = prev.amountPaid;
+      const paidNum = parseFloat(prev.amountPaid);
+      const creditNum = parseFloat(prev.creditAmount);
+
+      if (total > 0) {
+        if (!isNaN(paidNum) && prev.amountPaid !== "") {
+          const rem = Math.max(0, total - paidNum);
+          newCredit = rem > 0 ? rem.toFixed(2).replace(/\.00$/, "") : "0";
+        } else if (!isNaN(creditNum) && prev.creditAmount !== "") {
+          const rem = Math.max(0, total - creditNum);
+          newPaid = rem > 0 ? rem.toFixed(2).replace(/\.00$/, "") : "0";
+        }
+      }
+      return { ...prev, pricePerKg: val, creditAmount: newCredit, amountPaid: newPaid };
+    });
+  };
+
   const handleAddTransaction = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
@@ -66,14 +170,38 @@ export default function ContactDetailClient({
     if (!form.isPayment) {
       const weight = parseFloat(calcForm.weight);
       const price = parseFloat(calcForm.pricePerKg);
-      
-      if (!calcForm.fishType || isNaN(weight) || isNaN(price) || weight <= 0 || price <= 0) {
-        setFormError("Please fill out all calculation fields with valid numbers.");
+      const creditAmt = parseFloat(calcForm.creditAmount);
+      const paidAmt = parseFloat(calcForm.amountPaid);
+
+      const hasCalc = !isNaN(weight) && !isNaN(price) && weight > 0 && price > 0;
+      const hasDirectCredit = !isNaN(creditAmt) && creditAmt > 0;
+
+      if (!calcForm.fishType.trim()) {
+        setFormError("Fish Type or description is required.");
         return;
       }
-      
-      rawAmount = weight * price;
-      finalDescription = `${calcForm.fishType} — ${weight}kg @ ${price.toLocaleString("en-LK")} LKR/kg`;
+
+      if (!hasCalc && !hasDirectCredit) {
+        setFormError("Please enter valid Weight & Price, or enter a Credit Amount.");
+        return;
+      }
+
+      if (hasCalc) {
+        rawAmount = weight * price;
+        finalDescription = `${calcForm.fishType} — ${weight}kg @ ${price.toLocaleString("en-LK")} LKR/kg`;
+
+        if (!isNaN(paidAmt) && paidAmt > rawAmount) {
+          setFormError("Amount paid cannot exceed the calculated total.");
+          return;
+        }
+        if (!isNaN(creditAmt) && creditAmt > rawAmount) {
+          setFormError("Credit amount cannot exceed the calculated total.");
+          return;
+        }
+      } else {
+        rawAmount = creditAmt;
+        finalDescription = calcForm.fishType;
+      }
     } else {
       if (!finalDescription.trim()) {
         setFormError("Description is required.");
@@ -108,18 +236,28 @@ export default function ContactDetailClient({
           let addedTxs = [result.data];
           let balanceChange = finalAmount;
           
-          if (!form.isPayment && calcForm.amountPaid) {
-            const amountPaidNum = parseFloat(calcForm.amountPaid);
-            if (!isNaN(amountPaidNum) && amountPaidNum > 0) {
+          if (!form.isPayment) {
+            let effectivePaid = 0;
+            if (calcForm.amountPaid) {
+              const p = parseFloat(calcForm.amountPaid);
+              if (!isNaN(p) && p > 0) effectivePaid = p;
+            } else if (calcForm.creditAmount && rawAmount > 0) {
+              const c = parseFloat(calcForm.creditAmount);
+              if (!isNaN(c) && c >= 0 && rawAmount > c) {
+                effectivePaid = rawAmount - c;
+              }
+            }
+
+            if (effectivePaid > 0) {
               const paymentResult = await addTransaction({
                 contactId: contact.id,
-                description: `Payment for ${calcForm.fishType} (${calcForm.weight}kg)`,
-                amount: -amountPaidNum,
+                description: `Payment for ${calcForm.fishType}${calcForm.weight ? ` (${calcForm.weight}kg)` : ""}`,
+                amount: -effectivePaid,
                 date: transactionDate,
               });
               if (paymentResult.success) {
                 addedTxs.unshift(paymentResult.data);
-                balanceChange -= amountPaidNum;
+                balanceChange -= effectivePaid;
               }
             }
           }
@@ -130,7 +268,7 @@ export default function ContactDetailClient({
             transactions: [...addedTxs, ...prev.transactions],
           }));
           setForm({ description: "", amount: "", isPayment: false });
-          setCalcForm({ fishType: "", weight: "", pricePerKg: "", amountPaid: "" });
+          setCalcForm({ fishType: "", weight: "", pricePerKg: "", amountPaid: "", creditAmount: "" });
         }
       } catch {
         setFormError("Failed to add transaction.");
@@ -138,21 +276,34 @@ export default function ContactDetailClient({
     });
   };
 
-  const handleDeleteTransaction = (txId: string) => {
-    if (!confirm("Delete this transaction? Balance will be recalculated."))
-      return;
+  const openDeleteDialog = (tx: ContactTransactionEntry) => {
+    setTxToDelete(tx);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTransaction = () => {
+    if (!txToDelete) return;
+    const txId = txToDelete.id;
+    const amount = txToDelete.amount;
 
     startTransition(async () => {
       try {
-        await deleteTransaction(txId);
-        const tx = contact.transactions.find((t) => t.id === txId);
-        setContact((prev) => ({
-          ...prev,
-          totalBalance: prev.totalBalance - (tx?.amount || 0),
-          transactions: prev.transactions.filter((t) => t.id !== txId),
-        }));
-      } catch {
-        // silently fail
+        const res = await deleteTransaction(txId);
+        if (res.success) {
+          setContact((prev) => ({
+            ...prev,
+            totalBalance:
+              res.newBalance !== undefined
+                ? res.newBalance
+                : prev.totalBalance - amount,
+            transactions: prev.transactions.filter((t) => t.id !== txId),
+          }));
+          setDeleteDialogOpen(false);
+          setTxToDelete(null);
+        }
+      } catch (err: any) {
+        setFormError(err.message || "Failed to delete transaction.");
+        setDeleteDialogOpen(false);
       }
     });
   };
@@ -377,9 +528,7 @@ export default function ContactDetailClient({
                         type="number"
                         step="0.01"
                         value={calcForm.weight}
-                        onChange={(e) =>
-                          setCalcForm({ ...calcForm, weight: e.target.value })
-                        }
+                        onChange={(e) => handleWeightChange(e.target.value)}
                         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
                         placeholder="0.00"
                       />
@@ -392,48 +541,81 @@ export default function ContactDetailClient({
                         type="number"
                         step="0.01"
                         value={calcForm.pricePerKg}
-                        onChange={(e) =>
-                          setCalcForm({ ...calcForm, pricePerKg: e.target.value })
-                        }
+                        onChange={(e) => handlePriceChange(e.target.value)}
                         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
                         placeholder="0.00"
                       />
                     </div>
                   </div>
                   
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                      Amount Paid Now (Optional)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={calcForm.amountPaid}
-                      onChange={(e) =>
-                        setCalcForm({ ...calcForm, amountPaid: e.target.value })
-                      }
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
-                      placeholder="0.00"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                        Amount Paid Now (Optional)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={calcForm.amountPaid}
+                        onChange={(e) => handleAmountPaidChange(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                        Credit Amount (Optional)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={calcForm.creditAmount}
+                        onChange={(e) => handleCreditAmountChange(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
+                        placeholder="0.00"
+                      />
+                    </div>
                   </div>
                   
                   {/* Auto-calculated preview */}
-                  <div className="pt-2 border-t border-amber-200/60 mt-2">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs text-slate-500 font-medium">Calculated Total:</span>
-                      <span className="text-sm font-bold text-amber-600">
-                        LKR {((parseFloat(calcForm.weight) || 0) * (parseFloat(calcForm.pricePerKg) || 0)).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    {parseFloat(calcForm.amountPaid) > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-slate-500 font-medium">Net Credit Added:</span>
-                        <span className="text-sm font-bold text-rose-500">
-                          LKR {(((parseFloat(calcForm.weight) || 0) * (parseFloat(calcForm.pricePerKg) || 0)) - parseFloat(calcForm.amountPaid)).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                  {((parseFloat(calcForm.weight) || 0) > 0 && (parseFloat(calcForm.pricePerKg) || 0) > 0) && (
+                    <div className="pt-2.5 border-t border-amber-200/60 mt-2 space-y-1.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium">Calculated Total:</span>
+                        <span className="text-sm font-bold text-amber-600">
+                          LKR {((parseFloat(calcForm.weight) || 0) * (parseFloat(calcForm.pricePerKg) || 0)).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
                         </span>
                       </div>
-                    )}
-                  </div>
+                      {parseFloat(calcForm.amountPaid) > 0 && (
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500 font-medium">Amount Paid Now:</span>
+                          <span className="text-xs font-semibold text-emerald-600">
+                            - LKR {(parseFloat(calcForm.amountPaid) || 0).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center text-xs pt-1 border-t border-amber-100">
+                        <span className="text-slate-600 font-semibold">Net Credit Added:</span>
+                        <span className="text-sm font-bold text-rose-600">
+                          LKR {Math.max(
+                            0,
+                            ((parseFloat(calcForm.weight) || 0) * (parseFloat(calcForm.pricePerKg) || 0)) - (parseFloat(calcForm.amountPaid) || 0)
+                          ).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {((parseFloat(calcForm.weight) || 0) <= 0 || (parseFloat(calcForm.pricePerKg) || 0) <= 0) && parseFloat(calcForm.creditAmount) > 0 && (
+                    <div className="pt-2.5 border-t border-amber-200/60 mt-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-600 font-semibold">Net Credit Added:</span>
+                        <span className="text-sm font-bold text-rose-600">
+                          LKR {(parseFloat(calcForm.creditAmount) || 0).toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Standard Form */
@@ -535,8 +717,8 @@ export default function ContactDetailClient({
                       <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                         Balance
                       </th>
-                      <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-12">
-                        
+                      <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-16">
+                        Actions
                       </th>
                     </tr>
                   </thead>
@@ -572,13 +754,16 @@ export default function ContactDetailClient({
                           })}
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <button
-                            onClick={() => handleDeleteTransaction(tx.id)}
-                            disabled={isPending}
-                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all duration-200 disabled:opacity-50"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {userRole === "MANAGER" && (
+                            <button
+                              onClick={() => openDeleteDialog(tx)}
+                              disabled={isPending}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200 disabled:opacity-50"
+                              title="Delete Transaction"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -589,6 +774,90 @@ export default function ContactDetailClient({
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-2">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <DialogTitle className="text-lg font-bold text-slate-900">
+              Delete Transaction
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 text-sm">
+              Are you sure you want to delete this transaction? The contact's balance will be automatically recalculated. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {txToDelete && (
+            <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Date:</span>
+                <span className="font-semibold text-slate-700">
+                  {new Date(txToDelete.date).toLocaleDateString("en-LK", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Description:</span>
+                <span className="font-semibold text-slate-700 max-w-[200px] truncate text-right">
+                  {txToDelete.description}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200/60 pt-2">
+                <span className="text-slate-500">Amount:</span>
+                <span
+                  className={`font-bold ${
+                    txToDelete.amount > 0 ? "text-rose-600" : "text-emerald-600"
+                  }`}
+                >
+                  {txToDelete.amount > 0 ? "+" : ""}
+                  {txToDelete.amount.toLocaleString("en-LK", {
+                    minimumFractionDigits: 2,
+                  })}{" "}
+                  LKR
+                </span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setTxToDelete(null);
+              }}
+              className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={confirmDeleteTransaction}
+              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold shadow-sm transition-colors flex items-center justify-center gap-1.5"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  Delete Transaction
+                </>
+              )}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

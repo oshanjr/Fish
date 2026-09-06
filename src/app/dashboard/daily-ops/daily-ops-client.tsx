@@ -333,7 +333,7 @@ export default function DailyOpsClient({
                   <label className="block text-xs font-medium text-slate-600">
                     Category
                   </label>
-                  {isManager && (
+                  {(isManager || userRole === "SUPERVISOR") && (
                     <button
                       type="button"
                       onClick={() => setShowCategoryModal(true)}

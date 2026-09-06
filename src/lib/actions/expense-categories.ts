@@ -17,6 +17,11 @@ export async function getExpenseCategories() {
 
 export async function addExpenseCategory(name: string) {
   try {
+    const session = await auth();
+    if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
+      throw new Error("Forbidden: Unauthorized");
+    }
+
     const validated = expenseCategorySchema.parse({ name });
     const trimmedName = validated.name;
 

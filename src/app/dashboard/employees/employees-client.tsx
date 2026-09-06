@@ -37,12 +37,14 @@ export default function EmployeesClient({
   staffList,
   initialPayroll,
   initialDateStr,
+  userRole,
 }: {
   initialEmployees: EmployeeEntry[];
   initialAttendance: AttendanceEntry[];
   staffList: { id: string; name: string }[];
   initialPayroll: PayrollEntry[];
   initialDateStr?: string;
+  userRole?: string;
 }) {
   const router = useRouter();
   // Employee state
@@ -421,24 +423,26 @@ export default function EmployeesClient({
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleActive(emp.id);
-                              }}
-                              disabled={isPending}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 transition-all duration-200"
-                              title={
-                                emp.isActive ? "Deactivate" : "Reactivate"
-                              }
-                            >
-                              {emp.isActive ? (
-                                <ToggleRight className="w-4 h-4 text-emerald-500" />
-                              ) : (
-                                <ToggleLeft className="w-4 h-4 text-slate-400" />
-                              )}
-                            </button>
+                            {userRole === "MANAGER" && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleActive(emp.id);
+                                }}
+                                disabled={isPending}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 transition-all duration-200"
+                                title={
+                                  emp.isActive ? "Deactivate" : "Reactivate"
+                                }
+                              >
+                                {emp.isActive ? (
+                                  <ToggleRight className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <ToggleLeft className="w-4 h-4 text-slate-400" />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

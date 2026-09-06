@@ -11,7 +11,7 @@ export default async function EmployeeDetailPage({
   const session = await auth();
   const userRole = session?.user?.role;
 
-  if (userRole !== "MANAGER") {
+  if (userRole !== "MANAGER" && userRole !== "SUPERVISOR") {
     redirect("/dashboard");
   }
 

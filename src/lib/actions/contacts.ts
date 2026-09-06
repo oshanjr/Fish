@@ -172,7 +172,37 @@ export async function deleteTransaction(id: string) {
 
   revalidatePath("/dashboard/contacts");
   revalidatePath(`/dashboard/contacts/${transaction.contactId}`);
-  return { success: true };
+  revalidatePath("/dashboard");
+  return { success: true, newBalance };
+}
+
+export async function getAllContactTransactions(limit: number = 200) {
+  const transactions = await prisma.contactTransaction.findMany({
+    take: limit,
+    include: {
+      contact: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+        },
+      },
+    },
+    orderBy: {
+      date: 'desc',
+    },
+  });
+
+  return transactions.map((t) => ({
+    id: t.id,
+    contactId: t.contactId,
+    contactName: t.contact.name,
+    contactType: t.contact.type,
+    description: t.description,
+    amount: Number(t.amount),
+    date: t.date.toISOString(),
+    createdAt: t.createdAt.toISOString(),
+  }));
 }
 
 export async function getTodaysTransactions() {

@@ -45,13 +45,13 @@ const navItems = [
     label: "Sellers & Buyers",
     href: "/dashboard/contacts",
     icon: Users,
-    roles: ["MANAGER"] as UserRole[],
+    roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
   },
   {
     label: "Employees",
     href: "/dashboard/employees",
     icon: UserCog,
-    roles: ["MANAGER"] as UserRole[],
+    roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
   },
   {
     label: "System Users",
@@ -63,7 +63,7 @@ const navItems = [
     label: "EPF / ETF",
     href: "/dashboard/epf-etf",
     icon: Users, // Can change icon if needed, maybe FileText
-    roles: ["MANAGER"] as UserRole[],
+    roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
   },
   {
     label: "Reports",

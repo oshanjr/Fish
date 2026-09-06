@@ -39,8 +39,8 @@ export async function getTodaysAttendance(dateStr?: string) {
 
 export async function saveAttendance(entries: AttendanceEntry[], dateStr?: string) {
   const session = await auth();
-  if (session?.user?.role !== "MANAGER") {
-    throw new Error("Forbidden: Only managers can manage attendance");
+  if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
+    throw new Error("Forbidden: Unauthorized");
   }
 
   // Validate all entries

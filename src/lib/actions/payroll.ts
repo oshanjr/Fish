@@ -26,8 +26,8 @@ export async function getAllPayroll() {
 export async function updatePayrollAdvance(data: any) {
   try {
     const session = await auth();
-    if (session?.user?.role !== "MANAGER") {
-      throw new Error("Forbidden: Only managers can update payroll");
+    if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
+      throw new Error("Forbidden: Unauthorized");
     }
 
     const validated = payrollUpdateSchema.parse(data);
@@ -132,8 +132,8 @@ export async function resetPayrollAdvances() {
 export async function addPayrollBonus(data: any) {
   try {
     const session = await auth();
-    if (session?.user?.role !== "MANAGER") {
-      throw new Error("Forbidden: Only managers can update payroll");
+    if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
+      throw new Error("Forbidden: Unauthorized");
     }
 
     const validated = bonusUpdateSchema.parse(data);

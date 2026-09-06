@@ -11,7 +11,7 @@ export default async function EmployeesPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await auth();
-  if (session?.user?.role !== "MANAGER") {
+  if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
     redirect("/dashboard");
   }
 
@@ -32,6 +32,7 @@ export default async function EmployeesPage(props: {
       staffList={staffList}
       initialPayroll={payroll}
       initialDateStr={dateStr}
+      userRole={session?.user?.role}
     />
   );
 }

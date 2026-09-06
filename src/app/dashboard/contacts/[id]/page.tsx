@@ -13,13 +13,18 @@ export default async function ContactDetailPage({
   const { id } = await params;
   
   const session = await auth();
-  if (session?.user?.role !== "MANAGER") {
+  if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
     redirect("/dashboard");
   }
 
   try {
     const contact = await getContactById(id);
-    return <ContactDetailClient contact={contact} />;
+    return (
+      <ContactDetailClient 
+        contact={contact} 
+        userRole={session?.user?.role ?? "EMPLOYEE"}
+      />
+    );
   } catch {
     notFound();
   }

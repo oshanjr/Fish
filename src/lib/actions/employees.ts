@@ -25,8 +25,8 @@ export async function createEmployee(data: {
   baseSalary: number;
 }) {
   const session = await auth();
-  if (session?.user?.role !== "MANAGER") {
-    throw new Error("Forbidden: Only managers can manage employees");
+  if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
+    throw new Error("Forbidden: Unauthorized");
   }
 
   const validated = employeeSchema.parse(data);
@@ -74,8 +74,8 @@ export async function updateEmployee(
   }
 ) {
   const session = await auth();
-  if (session?.user?.role !== "MANAGER") {
-    throw new Error("Forbidden: Only managers can update employees");
+  if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
+    throw new Error("Forbidden: Unauthorized");
   }
 
   const validated = employeeSchema.parse(data);

@@ -12,8 +12,8 @@ export async function addEpfEtfRecord(data: {
   etfAmount: number;
 }) {
   const session = await auth();
-  if (session?.user?.role !== "MANAGER") {
-    throw new Error("Forbidden: Only managers can add EPF/ETF records");
+  if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
+    throw new Error("Forbidden: Unauthorized");
   }
 
   const validated = epfEtfSchema.parse(data);
