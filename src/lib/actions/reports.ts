@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function getMonthlyFinancials(year: number, month: number) {
   // month is 1-indexed (1 = Jan, 12 = Dec)
-  const startDate = new Date(year, month - 1, 1);
+  const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
   const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
   // 1. Get Daily Store Summaries for the month
@@ -17,11 +17,6 @@ export async function getMonthlyFinancials(year: number, month: number) {
     },
     orderBy: { date: "asc" },
   });
-
-  const totalPosSales = summaries.reduce((sum, s) => sum + Number(s.totalPosSales), 0);
-  const totalBuyingCost = summaries.reduce((sum, s) => sum + Number(s.totalBuyingCost), 0);
-  const totalExpenses = summaries.reduce((sum, s) => sum + Number(s.calculatedExpenses), 0);
-  const totalNetProfit = summaries.reduce((sum, s) => sum + Number(s.netProfit), 0);
 
   // 2. Get detailed Daily Expenses for the month
   const detailedExpenses = await prisma.dailyExpense.findMany({
@@ -36,6 +31,18 @@ export async function getMonthlyFinancials(year: number, month: number) {
     },
     orderBy: { date: "desc" },
   });
+
+  const totalPosSales = summaries.reduce((sum, s) => sum + Number(s.totalPosSales), 0);
+  const totalBuyingCost = summaries.reduce((sum, s) => sum + Number(s.totalBuyingCost), 0);
+  
+  // If store summaries were recorded, use calculatedExpenses; otherwise fall back to logged expenses
+  const totalExpenses = summaries.length > 0
+    ? summaries.reduce((sum, s) => sum + Number(s.calculatedExpenses), 0)
+    : detailedExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    
+  const totalNetProfit = summaries.length > 0
+    ? summaries.reduce((sum, s) => sum + Number(s.netProfit), 0)
+    : (totalPosSales - totalBuyingCost - totalExpenses);
 
   return {
     totals: {
@@ -65,13 +72,12 @@ export async function getMonthlyFinancials(year: number, month: number) {
 }
 
 export async function getMonthlyAttendanceAndPayroll(year: number, month: number) {
-  const startDate = new Date(year, month - 1, 1);
+  const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
   const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-  // 1. Get all active employees
-  const employees = await prisma.employee.findMany({
-    where: { isActive: true },
-    select: { id: true, name: true, baseSalary: true },
+  // 1. Get employees (including inactive employees who may have worked in past months)
+  const allEmployees = await prisma.employee.findMany({
+    select: { id: true, name: true, baseSalary: true, isActive: true },
   });
 
   // 2. Get attendance for the month
@@ -101,32 +107,134 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
   // Calculate days in the selected month
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  return employees.map((emp) => {
-    // Count present days
-    const presentDays = attendance.filter((a) => a.employeeId === emp.id).length;
-    
-    // Sum advances for this specific employee in this month
-    const empAdvances = advances
-      .filter((adv) => adv.category.includes(emp.name))
-      .reduce((sum, adv) => sum + Number(adv.amount), 0);
+  return allEmployees
+    .map((emp) => {
+      // Count present days
+      const presentDays = attendance.filter((a) => a.employeeId === emp.id).length;
+      
+      // Sum advances for this specific employee in this month
+      const empAdvances = advances
+        .filter((adv) => adv.category.includes(emp.name))
+        .reduce((sum, adv) => sum + Number(adv.amount), 0);
 
-    const baseSal = Number(emp.baseSalary);
-    
-    // Calculate Earned Pay (Prorated)
-    const earnedPay = (baseSal / daysInMonth) * presentDays;
-    
-    // Final Payout
-    const finalPayout = earnedPay - empAdvances;
+      const baseSal = Number(emp.baseSalary);
+      
+      // Calculate Earned Pay (Prorated)
+      const earnedPay = (baseSal / daysInMonth) * presentDays;
+      
+      // Final Payout
+      const finalPayout = earnedPay - empAdvances;
 
-    return {
-      id: emp.id,
-      name: emp.name,
-      baseSalary: baseSal,
-      presentDays,
-      daysInMonth,
-      earnedPay: Math.round(earnedPay * 100) / 100,
-      advancesTaken: empAdvances,
-      finalPayout: Math.round(finalPayout * 100) / 100,
-    };
+      return {
+        id: emp.id,
+        name: emp.name,
+        baseSalary: baseSal,
+        isActive: emp.isActive,
+        presentDays,
+        daysInMonth,
+        earnedPay: Math.round(earnedPay * 100) / 100,
+        advancesTaken: empAdvances,
+        finalPayout: Math.round(finalPayout * 100) / 100,
+      };
+    })
+    .filter((emp) => emp.isActive || emp.presentDays > 0 || emp.advancesTaken > 0);
+}
+
+export async function getPastMonthsSummary(limit: number = 12) {
+  // 1. Get all store summaries ordered by date desc
+  const summaries = await prisma.dailyStoreSummary.findMany({
+    select: {
+      date: true,
+      totalPosSales: true,
+      totalBuyingCost: true,
+      calculatedExpenses: true,
+      netProfit: true,
+    },
+    orderBy: { date: "desc" },
   });
+
+  // 2. Get all expenses to detect months that might have expenses even without store summaries
+  const expenses = await prisma.dailyExpense.findMany({
+    select: {
+      date: true,
+      amount: true,
+    },
+    orderBy: { date: "desc" },
+  });
+
+  const monthMap = new Map<string, {
+    year: number;
+    month: number;
+    monthKey: string;
+    totalPosSales: number;
+    totalBuyingCost: number;
+    totalExpenses: number;
+    totalNetProfit: number;
+    daysCount: number;
+  }>();
+
+  for (const s of summaries) {
+    const d = new Date(s.date);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const key = `${year}-${String(month).padStart(2, "0")}`;
+
+    const item = monthMap.get(key) || {
+      year,
+      month,
+      monthKey: key,
+      totalPosSales: 0,
+      totalBuyingCost: 0,
+      totalExpenses: 0,
+      totalNetProfit: 0,
+      daysCount: 0,
+    };
+
+    item.totalPosSales += Number(s.totalPosSales);
+    item.totalBuyingCost += Number(s.totalBuyingCost);
+    item.totalExpenses += Number(s.calculatedExpenses);
+    item.totalNetProfit += Number(s.netProfit);
+    item.daysCount += 1;
+    monthMap.set(key, item);
+  }
+
+  for (const e of expenses) {
+    const d = new Date(e.date);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const key = `${year}-${String(month).padStart(2, "0")}`;
+
+    if (!monthMap.has(key)) {
+      monthMap.set(key, {
+        year,
+        month,
+        monthKey: key,
+        totalPosSales: 0,
+        totalBuyingCost: 0,
+        totalExpenses: Number(e.amount),
+        totalNetProfit: -Number(e.amount),
+        daysCount: 0,
+      });
+    }
+  }
+
+  // Ensure current month exists in the list
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  if (!monthMap.has(currentKey)) {
+    monthMap.set(currentKey, {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      monthKey: currentKey,
+      totalPosSales: 0,
+      totalBuyingCost: 0,
+      totalExpenses: 0,
+      totalNetProfit: 0,
+      daysCount: 0,
+    });
+  }
+
+  return Array.from(monthMap.values())
+    .sort((a, b) => b.monthKey.localeCompare(a.monthKey))
+    .slice(0, limit);
 }
