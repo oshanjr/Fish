@@ -14,6 +14,7 @@ export async function getAllEmployees(activeOnly: boolean = false) {
   return employees.map((e) => ({
     ...e,
     baseSalary: Number(e.baseSalary),
+    sundayPayment: Number(e.sundayPayment),
   }));
 }
 
@@ -23,6 +24,7 @@ export async function createEmployee(data: {
   password?: string;
   nic?: string;
   baseSalary: number;
+  sundayPayment?: number;
 }) {
   const session = await auth();
   if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
@@ -44,6 +46,7 @@ export async function createEmployee(data: {
       passwordHash,
       nic: validated.nic || null,
       baseSalary: validated.baseSalary,
+      sundayPayment: validated.sundayPayment ?? 0,
     },
   });
 
@@ -59,7 +62,7 @@ export async function createEmployee(data: {
   revalidatePath("/dashboard/employees");
   return {
     success: true,
-    data: { ...employee, baseSalary: Number(employee.baseSalary) },
+    data: { ...employee, baseSalary: Number(employee.baseSalary), sundayPayment: Number(employee.sundayPayment) },
   };
 }
 
@@ -71,6 +74,7 @@ export async function updateEmployee(
     password?: string;
     nic?: string;
     baseSalary: number;
+    sundayPayment?: number;
   }
 ) {
   const session = await auth();
@@ -88,11 +92,12 @@ export async function updateEmployee(
 
   const currentEmployee = await prisma.employee.findUnique({
     where: { id },
-    select: { baseSalary: true },
+    select: { baseSalary: true, sundayPayment: true },
   });
 
   if (!currentEmployee) throw new Error("Employee not found");
   const oldBaseSalary = Number(currentEmployee.baseSalary);
+  const oldSundayPayment = Number(currentEmployee.sundayPayment);
 
   const employee = await prisma.$transaction(async (tx) => {
     const updated = await tx.employee.update({
@@ -103,10 +108,13 @@ export async function updateEmployee(
         ...(passwordHash ? { passwordHash } : {}),
         nic: validated.nic || null,
         baseSalary: validated.baseSalary,
+        sundayPayment: validated.sundayPayment ?? 0,
       },
     });
 
-    if (oldBaseSalary !== validated.baseSalary) {
+    const newSundayPayment = validated.sundayPayment ?? 0;
+
+    if (oldBaseSalary !== validated.baseSalary || oldSundayPayment !== newSundayPayment) {
       const attendances = await tx.staffAttendance.findMany({
         where: { employeeId: id },
       });
@@ -116,7 +124,14 @@ export async function updateEmployee(
       for (const record of attendances) {
         const hours = record.hoursWorked ? Number(record.hoursWorked) : 0;
         const oldEarnedPay = record.earnedPay ? Number(record.earnedPay) : 0;
-        const newEarnedPay = validated.baseSalary * (hours / 12);
+        const isSunday = record.date.getDay() === 0;
+        let newEarnedPay = 0;
+        if (isSunday && hours > 0) {
+          // Sundays: flat sundayPayment only, no base salary
+          newEarnedPay = newSundayPayment;
+        } else {
+          newEarnedPay = validated.baseSalary * (hours / 12);
+        }
 
         const delta = newEarnedPay - oldEarnedPay;
         totalPayDelta += delta;
@@ -153,7 +168,7 @@ export async function updateEmployee(
   revalidatePath(`/dashboard/employees/${id}`);
   return {
     success: true,
-    data: { ...employee, baseSalary: Number(employee.baseSalary) },
+    data: { ...employee, baseSalary: Number(employee.baseSalary), sundayPayment: Number(employee.sundayPayment) },
   };
 }
 
@@ -174,6 +189,6 @@ export async function toggleEmployeeActive(id: string) {
   revalidatePath("/dashboard/employees");
   return {
     success: true,
-    data: { ...updated, baseSalary: Number(updated.baseSalary) },
+    data: { ...updated, baseSalary: Number(updated.baseSalary), sundayPayment: Number(updated.sundayPayment) },
   };
 }

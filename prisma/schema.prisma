@@ -48,7 +48,8 @@ model Employee {
   phone        String?  @unique
   passwordHash String?
   nic          String?
-  baseSalary   Decimal  @default(0) @db.Decimal(10, 2)
+  baseSalary     Decimal  @default(0) @db.Decimal(10, 2)
+  sundayPayment  Decimal  @default(0) @db.Decimal(10, 2)
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

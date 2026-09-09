@@ -24,6 +24,7 @@ type EmployeeData = {
   phone: string | null;
   nic: string | null;
   baseSalary: number;
+  sundayPayment: number;
   isActive: boolean;
 };
 
@@ -75,8 +76,6 @@ export default function EmployeeDetailClient({
   const [bonusAmount, setBonusAmount] = useState("");
   const [bonusDate, setBonusDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [bonusDescription, setBonusDescription] = useState("");
-  const [sundayAmount, setSundayAmount] = useState("");
-  const [sundayDate, setSundayDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [message, setMessage] = useState("");
 
   const [isPending, startTransition] = useTransition();
@@ -182,56 +181,7 @@ export default function EmployeeDetailClient({
     });
   };
 
-  const handleUpdateSundayPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage("");
 
-    if (!payroll) return;
-
-    const amount = parseFloat(sundayAmount);
-    const data = { employeeId: employee.id, amount, description: "Sunday Payment", date: sundayDate };
-
-    const validation = bonusUpdateSchema.safeParse(data);
-    if (!validation.success) {
-      setMessage(validation.error.issues[0].message);
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        const result = await addPayrollBonus(data);
-
-        if (result.success) {
-           const newBonus = payroll.bonusEarned + amount;
-           const newBalance = employee.baseSalary + payroll.earnedSalary - payroll.advanceTaken;
-           
-           setPayroll((prev) => 
-             prev ? {
-               ...prev,
-               bonusEarned: newBonus,
-               balanceOwed: newBalance,
-             } : null
-           );
-
-           // Optimistically add to history
-          const newEntry: HistoryData = {
-            id: `temp-${Date.now()}`,
-            date: new Date(sundayDate).toISOString(),
-            category: `Bonus: ${data.description} - ${employee.name}`,
-            amount: amount,
-            loggedBy: "You",
-            createdAt: new Date().toISOString(),
-          };
-          setPaymentHistory((prev) => [newEntry, ...prev]);
-
-          setSundayAmount("");
-          setMessage("Sunday payment logged in daily expenses.");
-        }
-      } catch {
-        setMessage("Failed to log Sunday payment.");
-      }
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -271,7 +221,7 @@ export default function EmployeeDetailClient({
       )}
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-indigo-50 rounded-lg">
@@ -281,6 +231,17 @@ export default function EmployeeDetailClient({
             </div>
             <p className="text-2xl font-bold text-slate-800">
               {employee.baseSalary.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+            </p>
+         </div>
+         <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm p-5">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-amber-50 rounded-lg">
+                 <Sun className="w-4 h-4 text-amber-500" />
+              </div>
+              <span className="text-sm font-medium text-slate-600">Sunday Pay</span>
+            </div>
+            <p className="text-2xl font-bold text-slate-800">
+              {employee.sundayPayment.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
             </p>
          </div>
          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5">
@@ -318,7 +279,7 @@ export default function EmployeeDetailClient({
          </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* Forms Section - Now a grid of its own elements */}
           {/* Issue Advance */}
           <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 flex flex-col h-full">
@@ -428,55 +389,8 @@ export default function EmployeeDetailClient({
             </form>
           </div>
 
-          {/* Issue Sunday Payment */}
-          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 flex flex-col h-full">
-            <h2 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-              <Sun className="w-4 h-4 text-amber-500" />
-              Issue Sunday Payment
-            </h2>
-
-            <form onSubmit={handleUpdateSundayPayment} className="space-y-4 flex flex-col flex-1">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={sundayDate}
-                  onChange={(e) => setSundayDate(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 mb-4"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                  Amount (LKR)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  required
-                  value={sundayAmount}
-                  onChange={(e) => setSundayAmount(e.target.value)}
-                  placeholder="e.g. 2500"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isPending || !payroll}
-                className="w-full py-2.5 rounded-lg bg-amber-500 text-white text-sm font-semibold shadow-md shadow-amber-500/20 hover:shadow-amber-500/40 hover:bg-amber-400 disabled:opacity-50 transition-all duration-200 mt-auto"
-              >
-                {isPending ? "Processing..." : "Issue Sunday Pay"}
-              </button>
-            </form>
-          </div>
-
         {/* History Section */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden h-full">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">

@@ -77,7 +77,7 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
 
   // 1. Get employees (including inactive employees who may have worked in past months)
   const allEmployees = await prisma.employee.findMany({
-    select: { id: true, name: true, baseSalary: true, isActive: true },
+    select: { id: true, name: true, baseSalary: true, sundayPayment: true, isActive: true },
   });
 
   // 2. Get attendance for the month
@@ -109,8 +109,12 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
 
   return allEmployees
     .map((emp) => {
-      // Count present days
-      const presentDays = attendance.filter((a) => a.employeeId === emp.id).length;
+      // Get attendance records for this employee
+      const empAttendance = attendance.filter((a) => a.employeeId === emp.id);
+      const presentDays = empAttendance.length;
+      
+      // Count Sunday present days for Sunday payment
+      const sundayPresentDays = empAttendance.filter((a) => a.date.getDay() === 0).length;
       
       // Sum advances for this specific employee in this month
       const empAdvances = advances
@@ -118,9 +122,11 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
         .reduce((sum, adv) => sum + Number(adv.amount), 0);
 
       const baseSal = Number(emp.baseSalary);
+      const sundayPay = Number(emp.sundayPayment);
       
-      // Calculate Earned Pay (Prorated)
-      const earnedPay = (baseSal / daysInMonth) * presentDays;
+      // Non-Sunday days get prorated base salary, Sundays get flat sundayPayment only
+      const nonSundayPresentDays = presentDays - sundayPresentDays;
+      const earnedPay = (baseSal / daysInMonth) * nonSundayPresentDays + (sundayPay * sundayPresentDays);
       
       // Final Payout
       const finalPayout = earnedPay - empAdvances;
@@ -131,6 +137,7 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
         baseSalary: baseSal,
         isActive: emp.isActive,
         presentDays,
+        sundayPresentDays,
         daysInMonth,
         earnedPay: Math.round(earnedPay * 100) / 100,
         advancesTaken: empAdvances,

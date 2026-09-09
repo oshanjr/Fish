@@ -57,6 +57,7 @@ export default function EmployeesClient({
     password: "",
     nic: "",
     baseSalary: "",
+    sundayPayment: "",
   });
   const [employeeError, setEmployeeError] = useState("");
 
@@ -95,7 +96,7 @@ export default function EmployeesClient({
   // ===== Employee handlers =====
   const openAddEmployee = () => {
     setEditingEmployee(null);
-    setEmployeeForm({ name: "", phone: "", password: "", nic: "", baseSalary: "" });
+    setEmployeeForm({ name: "", phone: "", password: "", nic: "", baseSalary: "", sundayPayment: "" });
     setEmployeeError("");
     setEmployeeDialogOpen(true);
   };
@@ -108,6 +109,7 @@ export default function EmployeesClient({
       password: "", // do not populate password on edit
       nic: emp.nic || "",
       baseSalary: emp.baseSalary.toString(),
+      sundayPayment: emp.sundayPayment.toString(),
     });
     setEmployeeError("");
     setEmployeeDialogOpen(true);
@@ -123,6 +125,7 @@ export default function EmployeesClient({
       password: employeeForm.password || undefined,
       nic: employeeForm.nic,
       baseSalary: parseFloat(employeeForm.baseSalary),
+      sundayPayment: employeeForm.sundayPayment ? parseFloat(employeeForm.sundayPayment) : 0,
     };
 
     const validation = employeeSchema.safeParse(data);
@@ -667,6 +670,25 @@ export default function EmployeesClient({
                   setEmployeeForm({
                     ...employeeForm,
                     baseSalary: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"
+                placeholder="0.00"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                Sunday Payment (LKR)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={employeeForm.sundayPayment}
+                onChange={(e) =>
+                  setEmployeeForm({
+                    ...employeeForm,
+                    sundayPayment: e.target.value,
                   })
                 }
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all"

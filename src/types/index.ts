@@ -56,6 +56,7 @@ export interface EmployeeEntry {
   phone: string | null;
   nic: string | null;
   baseSalary: number;
+  sundayPayment: number;
   isActive: boolean;
 }
 

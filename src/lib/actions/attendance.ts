@@ -61,20 +61,32 @@ export async function saveAttendance(entries: AttendanceEntry[], dateStr?: strin
         },
       },
       include: {
-        employee: { select: { baseSalary: true } }
+        employee: { select: { baseSalary: true, sundayPayment: true } }
       }
     });
 
     let baseSalary = 0;
+    let sundayPayment = 0;
     if (existing) {
       baseSalary = Number(existing.employee.baseSalary);
+      sundayPayment = Number(existing.employee.sundayPayment);
     } else {
-      const emp = await prisma.employee.findUnique({ where: { id: entry.employeeId }, select: { baseSalary: true } });
-      if (emp) baseSalary = Number(emp.baseSalary);
+      const emp = await prisma.employee.findUnique({ where: { id: entry.employeeId }, select: { baseSalary: true, sundayPayment: true } });
+      if (emp) {
+        baseSalary = Number(emp.baseSalary);
+        sundayPayment = Number(emp.sundayPayment);
+      }
     }
 
     const newHours = entry.hoursWorked || 0;
-    const newEarnedPay = baseSalary * (newHours / 12);
+    const isSunday = targetDate.getDay() === 0;
+    let newEarnedPay = 0;
+    if (isSunday && newHours > 0) {
+      // Sundays: flat sundayPayment only, no base salary
+      newEarnedPay = sundayPayment;
+    } else {
+      newEarnedPay = baseSalary * (newHours / 12);
+    }
     const existingPay = existing?.earnedPay ? Number(existing.earnedPay) : 0;
     const payDelta = newEarnedPay - existingPay;
 

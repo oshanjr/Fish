@@ -185,6 +185,12 @@ export const employeeSchema = z.object({
     .number({ message: "Salary must be a number" })
     .min(0, "Salary cannot be negative")
     .max(1000000, "Salary seems too high"),
+  sundayPayment: z
+    .number({ message: "Sunday payment must be a number" })
+    .min(0, "Sunday payment cannot be negative")
+    .max(1000000, "Sunday payment seems too high")
+    .optional()
+    .default(0),
 });
 
 // EPF/ETF validation (NEW)

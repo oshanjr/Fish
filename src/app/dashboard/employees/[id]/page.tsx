@@ -63,6 +63,7 @@ export default async function EmployeeDetailPage({
   const serializedEmployee = {
     ...employee,
     baseSalary: Number(employee.baseSalary),
+    sundayPayment: Number(employee.sundayPayment),
   };
 
   const serializedPayroll = payrollRecord ? {
