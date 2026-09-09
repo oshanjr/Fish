@@ -51,7 +51,13 @@ const navItems = [
     label: "Employees",
     href: "/dashboard/employees",
     icon: UserCog,
-    roles: ["MANAGER", "SUPERVISOR"] as UserRole[],
+    roles: ["MANAGER"] as UserRole[],
+  },
+  {
+    label: "Attendance",
+    href: "/dashboard/employees",
+    icon: UserCog,
+    roles: ["SUPERVISOR"] as UserRole[],
   },
   {
     label: "System Users",

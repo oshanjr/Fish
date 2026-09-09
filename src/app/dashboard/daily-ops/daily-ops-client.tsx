@@ -88,7 +88,7 @@ export default function DailyOpsClient({
 
     startTransitionExpense(async () => {
       try {
-        const isPayrollRelated = ["Salary Advance", "Bonus", "Sunday Payment"].includes(expenseForm.category);
+        const isPayrollRelated = ["Salary Advance", "Bonus"].includes(expenseForm.category);
         if (isPayrollRelated) {
           if (!selectedEmployeeId) {
             setExpenseError(`Please select an employee for the ${expenseForm.category.toLowerCase()}.`);
@@ -111,7 +111,7 @@ export default function DailyOpsClient({
               setSelectedEmployeeId("");
             }
           } else {
-            const desc = expenseForm.category === "Sunday Payment" ? "Sunday Payment" : (expenseForm.description || "Bonus");
+            const desc = expenseForm.description || "Bonus";
             const result = await addPayrollBonus({
               employeeId: selectedEmployeeId,
               amount: amount,
@@ -362,7 +362,7 @@ export default function DailyOpsClient({
                 </select>
               </div>
 
-              {["Salary Advance", "Bonus", "Sunday Payment"].includes(expenseForm.category) && (
+              {["Salary Advance", "Bonus"].includes(expenseForm.category) && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">
                     Select Employee
