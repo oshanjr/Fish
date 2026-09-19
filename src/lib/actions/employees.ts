@@ -115,6 +115,7 @@ export async function updateEmployee(
     const newSundayPayment = validated.sundayPayment ?? 0;
 
     if (oldBaseSalary !== validated.baseSalary || oldSundayPayment !== newSundayPayment) {
+      // Fetch all attendance records to compute the total pay delta
       const attendances = await tx.staffAttendance.findMany({
         where: { employeeId: id },
       });
@@ -127,22 +128,27 @@ export async function updateEmployee(
         const isSunday = record.date.getDay() === 0;
         let newEarnedPay = 0;
         if (isSunday && hours > 0) {
-          // Sundays: flat sundayPayment only, no base salary
           newEarnedPay = newSundayPayment;
         } else {
           newEarnedPay = validated.baseSalary * (hours / 12);
         }
-
-        const delta = newEarnedPay - oldEarnedPay;
-        totalPayDelta += delta;
-
-        if (delta !== 0) {
-          await tx.staffAttendance.update({
-            where: { id: record.id },
-            data: { earnedPay: newEarnedPay },
-          });
-        }
+        totalPayDelta += newEarnedPay - oldEarnedPay;
       }
+
+      // Batch update: recalculate all attendance earnedPay using raw SQL
+      // to avoid N individual update round-trips that cause transaction timeouts
+      await tx.$executeRawUnsafe(
+        `UPDATE "staff_attendance"
+         SET "earnedPay" = CASE
+           WHEN EXTRACT(DOW FROM "date") = 0 AND "hoursWorked" > 0
+             THEN $1
+           ELSE $2 * ("hoursWorked" / 12.0)
+         END
+         WHERE "employeeId" = $3`,
+        newSundayPayment,
+        validated.baseSalary,
+        id
+      );
 
       if (totalPayDelta !== 0) {
         const payroll = await tx.staffPayroll.findUnique({
@@ -162,6 +168,9 @@ export async function updateEmployee(
     }
 
     return updated;
+  }, {
+    maxWait: 10000,  // max time to acquire a connection (10s)
+    timeout: 30000,  // max transaction duration (30s)
   });
 
   revalidatePath("/dashboard/employees");
