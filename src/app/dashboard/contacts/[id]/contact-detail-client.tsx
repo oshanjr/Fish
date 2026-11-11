@@ -339,8 +339,12 @@ export default function ContactDetailClient({
     });
   };
 
-  // Month filter state ("YYYY-MM" or "" for all months)
+  // Filter state (filter by month or exact date)
+  const [filterMode, setFilterMode] = useState<"month" | "date">("month");
   const [filterMonth, setFilterMonth] = useState<string>("");
+  const [filterDate, setFilterDate] = useState<string>("");
+
+  const isFiltered = filterMode === "month" ? Boolean(filterMonth) : Boolean(filterDate);
 
   // Compute running balance for display (oldest first across all transactions)
   const transactionsWithBalance = useMemo(() => {
@@ -353,19 +357,30 @@ export default function ContactDetailClient({
     return result.reverse();
   }, [contact.transactions]);
 
-  // Filtered transactions for the selected month
+  // Filtered transactions for the selected month or date
   const displayedTransactions = useMemo(() => {
-    if (!filterMonth) return transactionsWithBalance;
-    return transactionsWithBalance.filter((tx) => {
-      const d = new Date(tx.date);
-      const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      return mStr === filterMonth;
-    });
-  }, [transactionsWithBalance, filterMonth]);
+    if (filterMode === "date" && filterDate) {
+      return transactionsWithBalance.filter((tx) => {
+        const d = new Date(tx.date);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return dateStr === filterDate;
+      });
+    }
 
-  // Summary statistics for the filtered month
-  const monthStats = useMemo(() => {
-    if (!filterMonth) return null;
+    if (filterMode === "month" && filterMonth) {
+      return transactionsWithBalance.filter((tx) => {
+        const d = new Date(tx.date);
+        const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return mStr === filterMonth;
+      });
+    }
+
+    return transactionsWithBalance;
+  }, [transactionsWithBalance, filterMode, filterMonth, filterDate]);
+
+  // Summary statistics for the filtered period
+  const filterStats = useMemo(() => {
+    if (!isFiltered) return null;
     const credits = displayedTransactions
       .filter((t) => t.amount > 0)
       .reduce((sum, t) => sum + t.amount, 0);
@@ -373,30 +388,51 @@ export default function ContactDetailClient({
       .filter((t) => t.amount < 0)
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
     const net = credits - payments;
-    return { credits, payments, net };
-  }, [displayedTransactions, filterMonth]);
+    return { credits, payments, net, count: displayedTransactions.length };
+  }, [displayedTransactions, isFiltered]);
 
-  const handlePrevMonth = () => {
-    if (!filterMonth) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - 1);
+  const handlePrev = () => {
+    if (filterMode === "month") {
+      if (!filterMonth) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+        return;
+      }
+      const [y, m] = filterMonth.split("-").map(Number);
+      const d = new Date(y, m - 2, 1);
       setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-      return;
+    } else {
+      const base = filterDate ? new Date(filterDate) : new Date();
+      base.setDate(base.getDate() - 1);
+      setFilterDate(
+        `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`
+      );
     }
-    const [y, m] = filterMonth.split("-").map(Number);
-    const d = new Date(y, m - 2, 1);
-    setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
 
-  const handleNextMonth = () => {
-    if (!filterMonth) {
-      const d = new Date();
+  const handleNext = () => {
+    if (filterMode === "month") {
+      if (!filterMonth) {
+        const d = new Date();
+        setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+        return;
+      }
+      const [y, m] = filterMonth.split("-").map(Number);
+      const d = new Date(y, m, 1);
       setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-      return;
+    } else {
+      const base = filterDate ? new Date(filterDate) : new Date();
+      base.setDate(base.getDate() + 1);
+      setFilterDate(
+        `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`
+      );
     }
-    const [y, m] = filterMonth.split("-").map(Number);
-    const d = new Date(y, m, 1);
-    setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+
+  const handleClear = () => {
+    setFilterMonth("");
+    setFilterDate("");
   };
 
   return (
@@ -799,47 +835,99 @@ export default function ContactDetailClient({
                   Transaction History
                 </h2>
                 <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
-                  {filterMonth
+                  {isFiltered
                     ? `${displayedTransactions.length} of ${transactionsWithBalance.length}`
                     : transactionsWithBalance.length}
                 </span>
               </div>
 
-              {/* Month Picker / Filter */}
+              {/* Filter Controls (Month or Specific Date) */}
               <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Segmented Mode Toggle: Month vs Date */}
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterMode("month");
+                      if (filterDate && !filterMonth) {
+                        setFilterMonth(filterDate.slice(0, 7));
+                      }
+                    }}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-all cursor-pointer ${
+                      filterMode === "month"
+                        ? "bg-white text-slate-800 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterMode("date");
+                      if (filterMonth && !filterDate) {
+                        setFilterDate(`${filterMonth}-01`);
+                      }
+                    }}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-all cursor-pointer ${
+                      filterMode === "date"
+                        ? "bg-white text-slate-800 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Date
+                  </button>
+                </div>
+
+                {/* Step back */}
                 <button
                   type="button"
-                  onClick={handlePrevMonth}
+                  onClick={handlePrev}
                   className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                  title="Previous Month"
+                  title={filterMode === "month" ? "Previous Month" : "Previous Day"}
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
 
-                <div className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg px-2.5 py-1 transition-colors">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <input
-                    type="month"
-                    value={filterMonth}
-                    onChange={(e) => setFilterMonth(e.target.value)}
-                    className="bg-transparent border-none outline-none text-xs font-medium text-slate-700 cursor-pointer"
-                  />
-                </div>
+                {/* Active input based on filterMode */}
+                {filterMode === "month" ? (
+                  <div className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg px-2.5 py-1 transition-colors">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="month"
+                      value={filterMonth}
+                      onChange={(e) => setFilterMonth(e.target.value)}
+                      className="bg-transparent border-none outline-none text-xs font-medium text-slate-700 cursor-pointer"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg px-2.5 py-1 transition-colors">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="date"
+                      value={filterDate}
+                      onChange={(e) => setFilterDate(e.target.value)}
+                      className="bg-transparent border-none outline-none text-xs font-medium text-slate-700 cursor-pointer"
+                    />
+                  </div>
+                )}
 
+                {/* Step forward */}
                 <button
                   type="button"
-                  onClick={handleNextMonth}
+                  onClick={handleNext}
                   className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                  title="Next Month"
+                  title={filterMode === "month" ? "Next Month" : "Next Day"}
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
 
+                {/* All (clear) */}
                 <button
                   type="button"
-                  onClick={() => setFilterMonth("")}
+                  onClick={handleClear}
                   className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
-                    !filterMonth
+                    !isFiltered
                       ? "bg-slate-800 text-white border-slate-800"
                       : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                   }`}
@@ -847,10 +935,10 @@ export default function ContactDetailClient({
                   All
                 </button>
 
-                {filterMonth && (
+                {isFiltered && (
                   <button
                     type="button"
-                    onClick={() => setFilterMonth("")}
+                    onClick={handleClear}
                     className="text-xs text-slate-400 hover:text-rose-500 p-1 transition-colors cursor-pointer"
                     title="Clear filter"
                   >
@@ -861,36 +949,42 @@ export default function ContactDetailClient({
             </div>
 
             {/* Filter Summary Banner */}
-            {filterMonth && monthStats && (
+            {isFiltered && filterStats && (
               <div className="bg-slate-50/70 px-5 py-2.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
                 <span className="text-slate-500 font-medium">
                   Summary for{" "}
                   <strong className="text-slate-700">
-                    {new Date(`${filterMonth}-02`).toLocaleDateString("en-LK", {
-                      month: "long",
-                      year: "numeric",
-                    })}
+                    {filterMode === "date"
+                      ? new Date(filterDate).toLocaleDateString("en-LK", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : new Date(`${filterMonth}-02`).toLocaleDateString("en-LK", {
+                          month: "long",
+                          year: "numeric",
+                        })}
                   </strong>
                   :
                 </span>
                 <div className="flex items-center gap-3">
                   <span className="text-rose-600 font-semibold">
-                    Credits: +{monthStats.credits.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                    Credits: +{filterStats.credits.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
                   </span>
                   <span className="text-slate-300">|</span>
                   <span className="text-emerald-600 font-semibold">
-                    Payments: -{monthStats.payments.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                    Payments: -{filterStats.payments.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
                   </span>
                   <span className="text-slate-300">|</span>
                   <span
                     className={
-                      monthStats.net >= 0
+                      filterStats.net >= 0
                         ? "text-slate-700 font-semibold"
                         : "text-emerald-700 font-semibold"
                     }
                   >
-                    Net: {monthStats.net >= 0 ? "+" : ""}
-                    {monthStats.net.toLocaleString("en-LK", { minimumFractionDigits: 2 })} LKR
+                    Net: {filterStats.net >= 0 ? "+" : ""}
+                    {filterStats.net.toLocaleString("en-LK", { minimumFractionDigits: 2 })} LKR
                   </span>
                 </div>
               </div>
@@ -907,15 +1001,20 @@ export default function ContactDetailClient({
               <div className="p-8 text-center">
                 <Calendar className="w-10 h-10 text-slate-200 mx-auto mb-3" />
                 <p className="text-sm text-slate-600 font-medium">
-                  No transactions recorded for{" "}
-                  {new Date(`${filterMonth}-02`).toLocaleDateString("en-LK", {
-                    month: "long",
-                    year: "numeric",
-                  })}
+                  {filterMode === "date"
+                    ? `No transactions recorded on ${new Date(filterDate).toLocaleDateString("en-LK", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}`
+                    : `No transactions recorded for ${new Date(`${filterMonth}-02`).toLocaleDateString("en-LK", {
+                        month: "long",
+                        year: "numeric",
+                      })}`}
                 </p>
                 <button
                   type="button"
-                  onClick={() => setFilterMonth("")}
+                  onClick={handleClear}
                   className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -951,11 +1050,23 @@ export default function ContactDetailClient({
                         className="hover:bg-slate-50/50 transition-colors group"
                       >
                         <td className="px-5 py-3 text-slate-500 text-xs whitespace-nowrap">
-                          {new Date(tx.date).toLocaleDateString("en-LK", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const d = new Date(tx.date);
+                              const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                              setFilterMode("date");
+                              setFilterDate(dateStr);
+                            }}
+                            className="hover:text-sky-600 hover:underline cursor-pointer"
+                            title="Filter by this date"
+                          >
+                            {new Date(tx.date).toLocaleDateString("en-LK", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </button>
                         </td>
                         <td className="px-5 py-3 text-slate-700 font-medium">
                           {tx.description}
