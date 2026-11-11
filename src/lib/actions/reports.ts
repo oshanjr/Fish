@@ -33,23 +33,29 @@ export async function getMonthlyFinancials(year: number, month: number) {
   });
 
   const totalPosSales = summaries.reduce((sum, s) => sum + Number(s.totalPosSales), 0);
-  const totalBuyingCost = summaries.reduce((sum, s) => sum + Number(s.totalBuyingCost), 0);
+
+  // Total Buying Cost: from closed summaries, or fallback to inventory logs if no summaries exist yet
+  let totalBuyingCost = summaries.reduce((sum, s) => sum + Number(s.totalBuyingCost), 0);
+  if (summaries.length === 0) {
+    const inventoryLogs = await prisma.fishInventoryLog.findMany({
+      where: { date: { gte: startDate, lte: endDate } },
+    });
+    totalBuyingCost = inventoryLogs.reduce(
+      (sum, log) => sum + Number(log.incomingWeight) * Number(log.buyingPricePerKg),
+      0
+    );
+  }
   
-  // If store summaries were recorded, use calculatedExpenses; otherwise fall back to logged expenses
-  const totalExpenses = summaries.length > 0
-    ? summaries.reduce((sum, s) => sum + Number(s.calculatedExpenses), 0)
-    : detailedExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-    
-  const totalNetProfit = summaries.length > 0
-    ? summaries.reduce((sum, s) => sum + Number(s.netProfit), 0)
-    : (totalPosSales - totalBuyingCost - totalExpenses);
+  // Total Expenses: sum all detailed expenses for the month to match the breakdown table exactly
+  const totalExpenses = detailedExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const totalNetProfit = totalPosSales - totalBuyingCost - totalExpenses;
 
   return {
     totals: {
-      totalPosSales,
-      totalBuyingCost,
-      totalExpenses,
-      totalNetProfit,
+      totalPosSales: Math.round(totalPosSales * 100) / 100,
+      totalBuyingCost: Math.round(totalBuyingCost * 100) / 100,
+      totalExpenses: Math.round(totalExpenses * 100) / 100,
+      totalNetProfit: Math.round(totalNetProfit * 100) / 100,
     },
     summaries: summaries.map(s => ({
       ...s,
@@ -78,20 +84,31 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
   // 1. Get employees (including inactive employees who may have worked in past months)
   const allEmployees = await prisma.employee.findMany({
     select: { id: true, name: true, baseSalary: true, sundayPayment: true, isActive: true },
+    orderBy: { name: "asc" },
   });
 
-  // 2. Get attendance for the month
+  // 2. Get attendance for the month (both PRESENT and HALF_DAY)
   const attendance = await prisma.staffAttendance.findMany({
     where: {
       date: {
         gte: startDate,
         lte: endDate,
       },
-      status: "PRESENT",
+      status: {
+        in: ["PRESENT", "HALF_DAY"],
+      },
+    },
+    select: {
+      id: true,
+      employeeId: true,
+      date: true,
+      status: true,
+      hoursWorked: true,
+      earnedPay: true,
     },
   });
 
-  // 3. Get salary advances (from DailyExpense containing 'Salary Advance - [Name]')
+  // 3. Get salary advances (from DailyExpense)
   const advances = await prisma.dailyExpense.findMany({
     where: {
       date: {
@@ -114,33 +131,51 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
       const presentDays = empAttendance.length;
       
       // Count Sunday present days for Sunday payment
-      const sundayPresentDays = empAttendance.filter((a) => a.date.getDay() === 0).length;
-      
-      // Sum advances for this specific employee in this month
-      const empAdvances = advances
-        .filter((adv) => adv.category.includes(emp.name))
-        .reduce((sum, adv) => sum + Number(adv.amount), 0);
+      const sundayPresentDays = empAttendance.filter((a) => new Date(a.date).getDay() === 0).length;
 
       const baseSal = Number(emp.baseSalary);
       const sundayPay = Number(emp.sundayPayment);
+
+      // Calculate earned pay:
+      // Use the stored earnedPay calculated by attendance/payroll system;
+      // fallback to formula if a historical record had null earnedPay
+      const earnedPay = empAttendance.reduce((sum, a) => {
+        if (a.earnedPay !== null && a.earnedPay !== undefined) {
+          return sum + Number(a.earnedPay);
+        }
+        const hours = a.hoursWorked ? Number(a.hoursWorked) : (a.status === "HALF_DAY" ? 6 : 12);
+        const isSunday = new Date(a.date).getDay() === 0;
+        if (isSunday && hours > 0) {
+          return sum + sundayPay;
+        }
+        return sum + (baseSal * (hours / 12));
+      }, 0);
       
-      // Non-Sunday days get prorated base salary, Sundays get flat sundayPayment only
-      const nonSundayPresentDays = presentDays - sundayPresentDays;
-      const earnedPay = (baseSal / daysInMonth) * nonSundayPresentDays + (sundayPay * sundayPresentDays);
-      
-      // Final Payout
+      // Sum advances for this specific employee in this month
+      // Exact matching to prevent substring collision (e.g., "Dan" matching "Daniel")
+      const empNameLower = emp.name.trim().toLowerCase();
+      const empAdvances = advances
+        .filter((adv) => {
+          const cat = adv.category.trim().toLowerCase();
+          const parsedName = cat.replace(/^salary advance[\s:-]+/, "").trim();
+          return parsedName === empNameLower;
+        })
+        .reduce((sum, adv) => sum + Number(adv.amount), 0);
+
+      // Final Payout = Earned Pay - Advances Taken
       const finalPayout = earnedPay - empAdvances;
 
       return {
         id: emp.id,
         name: emp.name,
         baseSalary: baseSal,
+        sundayPayment: sundayPay,
         isActive: emp.isActive,
         presentDays,
         sundayPresentDays,
         daysInMonth,
         earnedPay: Math.round(earnedPay * 100) / 100,
-        advancesTaken: empAdvances,
+        advancesTaken: Math.round(empAdvances * 100) / 100,
         finalPayout: Math.round(finalPayout * 100) / 100,
       };
     })
@@ -199,30 +234,38 @@ export async function getPastMonthsSummary(limit: number = 12) {
 
     item.totalPosSales += Number(s.totalPosSales);
     item.totalBuyingCost += Number(s.totalBuyingCost);
-    item.totalExpenses += Number(s.calculatedExpenses);
-    item.totalNetProfit += Number(s.netProfit);
     item.daysCount += 1;
     monthMap.set(key, item);
   }
 
+  // Aggregate actual monthly expenses from dailyExpense for full consistency with getMonthlyFinancials
   for (const e of expenses) {
     const d = new Date(e.date);
     const year = d.getFullYear();
     const month = d.getMonth() + 1;
     const key = `${year}-${String(month).padStart(2, "0")}`;
 
-    if (!monthMap.has(key)) {
-      monthMap.set(key, {
-        year,
-        month,
-        monthKey: key,
-        totalPosSales: 0,
-        totalBuyingCost: 0,
-        totalExpenses: Number(e.amount),
-        totalNetProfit: -Number(e.amount),
-        daysCount: 0,
-      });
-    }
+    const item = monthMap.get(key) || {
+      year,
+      month,
+      monthKey: key,
+      totalPosSales: 0,
+      totalBuyingCost: 0,
+      totalExpenses: 0,
+      totalNetProfit: 0,
+      daysCount: 0,
+    };
+
+    item.totalExpenses += Number(e.amount);
+    monthMap.set(key, item);
+  }
+
+  // Compute totalNetProfit consistently: Sales - Buying Cost - Expenses
+  for (const item of monthMap.values()) {
+    item.totalPosSales = Math.round(item.totalPosSales * 100) / 100;
+    item.totalBuyingCost = Math.round(item.totalBuyingCost * 100) / 100;
+    item.totalExpenses = Math.round(item.totalExpenses * 100) / 100;
+    item.totalNetProfit = Math.round((item.totalPosSales - item.totalBuyingCost - item.totalExpenses) * 100) / 100;
   }
 
   // Ensure current month exists in the list
