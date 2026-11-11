@@ -348,12 +348,20 @@ export default function ReportsClient({
                 <Users className="w-4 h-4 text-indigo-500" />
                 Monthly Payroll & Attendance
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Calculated as (Base Salary / Days in Month) * Days Present - Advances</p>
+              <p className="text-xs text-slate-500 mt-0.5">Calculated as Earned Wages (Standard Shift / Sunday Rate) - Salary Advances</p>
             </div>
             <span className="text-xs font-medium text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">
               {MONTHS[selectedMonth - 1]} {selectedYear}
             </span>
           </div>
+
+          {/* Notice when attendance was not marked for the month */}
+          {attendance.length > 0 && attendance.every(e => e.presentDays === 0) && attendance.some(e => e.advancesTaken > 0) && (
+            <div className="mx-4 mt-4 px-3.5 py-2.5 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-800 text-xs flex items-center gap-2">
+              <span className="font-semibold">Note:</span>
+              <span>No attendance shifts have been logged for {MONTHS[selectedMonth - 1]} {selectedYear} yet. Advances are recorded, but staff attendance must be marked in the <strong>Attendance</strong> tab to calculate earned wages.</span>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-500 border-b border-slate-100 text-xs">

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { expenseSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import { recalcDaySummary } from "@/lib/actions/recalc-summary";
 
 export async function addExpense(data: { category: string; amount: number; date?: string }) {
   const session = await auth();
@@ -25,8 +26,12 @@ export async function addExpense(data: { category: string; amount: number; date?
     },
   });
 
+  // Recalculate the day's summary so expenses stay in sync
+  await recalcDaySummary(targetDate);
+
   revalidatePath("/dashboard/daily-ops");
   revalidatePath("/dashboard/evening-closing");
+  revalidatePath("/dashboard");
   return { 
     success: true, 
     data: {
@@ -59,8 +64,16 @@ export async function deleteExpense(id: string) {
     throw new Error("Forbidden: Only managers can delete records");
   }
   
+  // Get the date before deleting so we can recalculate the day's summary
+  const expense = await prisma.dailyExpense.findUnique({ where: { id }, select: { date: true } });
   await prisma.dailyExpense.delete({ where: { id } });
+
+  if (expense) {
+    await recalcDaySummary(expense.date);
+  }
+
   revalidatePath("/dashboard/daily-ops");
   revalidatePath("/dashboard/evening-closing");
+  revalidatePath("/dashboard");
   return { success: true };
 }

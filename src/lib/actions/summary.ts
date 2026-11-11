@@ -154,6 +154,7 @@ export async function saveDaySummary(data: { cashSales: number; cardSales: numbe
 
   revalidatePath("/dashboard/daily-ops");
   revalidatePath("/dashboard/hub-sync");
+  revalidatePath("/dashboard");
   
   return { 
     success: true, 

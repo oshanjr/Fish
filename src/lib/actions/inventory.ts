@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { fishIntakeSchema, wastageSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import { recalcDaySummary } from "@/lib/actions/recalc-summary";
 
 export async function createFishIntake(data: {
   date?: string;
@@ -31,8 +32,12 @@ export async function createFishIntake(data: {
     },
   });
 
+  // Recalculate the day's summary so buying cost stays in sync
+  await recalcDaySummary(targetDate);
+
   revalidatePath("/dashboard/morning-intake");
   revalidatePath("/dashboard/evening-closing");
+  revalidatePath("/dashboard");
   return { 
     success: true, 
     data: {
@@ -96,8 +101,16 @@ export async function deleteInventoryLog(id: string) {
     throw new Error("Forbidden: Only managers can delete records");
   }
   
+  // Get the date before deleting so we can recalculate the day's summary
+  const log = await prisma.fishInventoryLog.findUnique({ where: { id }, select: { date: true } });
   await prisma.fishInventoryLog.delete({ where: { id } });
+
+  if (log) {
+    await recalcDaySummary(log.date);
+  }
+
   revalidatePath("/dashboard/morning-intake");
   revalidatePath("/dashboard/evening-closing");
+  revalidatePath("/dashboard");
   return { success: true };
 }

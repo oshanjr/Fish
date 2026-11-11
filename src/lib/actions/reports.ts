@@ -32,23 +32,36 @@ export async function getMonthlyFinancials(year: number, month: number) {
     orderBy: { date: "desc" },
   });
 
+  // 3. Get detailed Fish Inventory for the month (source of truth for buying costs)
+  const inventoryLogs = await prisma.fishInventoryLog.findMany({
+    where: {
+      date: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+  });
+
   const totalPosSales = summaries.reduce((sum, s) => sum + Number(s.totalPosSales), 0);
 
-  // Total Buying Cost: from closed summaries, or fallback to inventory logs if no summaries exist yet
-  let totalBuyingCost = summaries.reduce((sum, s) => sum + Number(s.totalBuyingCost), 0);
-  if (summaries.length === 0) {
-    const inventoryLogs = await prisma.fishInventoryLog.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
-    });
-    totalBuyingCost = inventoryLogs.reduce(
-      (sum, log) => sum + Number(log.incomingWeight) * Number(log.buyingPricePerKg),
-      0
-    );
-  }
+  // Total Buying Cost: sum all fish inventory logs for the month
+  // This accurately captures intake even if it was logged retroactively after a day summary was closed
+  const totalBuyingCost = inventoryLogs.reduce(
+    (sum, log) => sum + Number(log.incomingWeight) * Number(log.buyingPricePerKg),
+    0
+  );
   
   // Total Expenses: sum all detailed expenses for the month to match the breakdown table exactly
   const totalExpenses = detailedExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const totalNetProfit = totalPosSales - totalBuyingCost - totalExpenses;
+
+  // Build a map of daily inventory buying costs so daily summary rows also reflect true intake
+  const dailyInventoryCostMap = new Map<string, number>();
+  for (const log of inventoryLogs) {
+    const key = log.date.toISOString().split("T")[0];
+    const cost = Number(log.incomingWeight) * Number(log.buyingPricePerKg);
+    dailyInventoryCostMap.set(key, (dailyInventoryCostMap.get(key) || 0) + cost);
+  }
 
   return {
     totals: {
@@ -57,17 +70,24 @@ export async function getMonthlyFinancials(year: number, month: number) {
       totalExpenses: Math.round(totalExpenses * 100) / 100,
       totalNetProfit: Math.round(totalNetProfit * 100) / 100,
     },
-    summaries: summaries.map(s => ({
-      ...s,
-      date: s.date.toISOString(),
-      totalPosSales: Number(s.totalPosSales),
-      cashSales: Number(s.cashSales),
-      cardSales: Number(s.cardSales),
-      totalBuyingCost: Number(s.totalBuyingCost),
-      calculatedExpenses: Number(s.calculatedExpenses),
-      calculatedWastageCost: Number(s.calculatedWastageCost),
-      netProfit: Number(s.netProfit),
-    })),
+    summaries: summaries.map(s => {
+      const key = s.date.toISOString().split("T")[0];
+      const directCost = dailyInventoryCostMap.get(key);
+      const buyingCost = directCost !== undefined && directCost > 0 ? directCost : Number(s.totalBuyingCost);
+      const posSales = Number(s.totalPosSales);
+      const expenses = Number(s.calculatedExpenses);
+      return {
+        ...s,
+        date: s.date.toISOString(),
+        totalPosSales: posSales,
+        cashSales: Number(s.cashSales),
+        cardSales: Number(s.cardSales),
+        totalBuyingCost: Math.round(buyingCost * 100) / 100,
+        calculatedExpenses: expenses,
+        calculatedWastageCost: Number(s.calculatedWastageCost),
+        netProfit: Math.round((posSales - buyingCost - expenses) * 100) / 100,
+      };
+    }),
     detailedExpenses: detailedExpenses.map(e => ({
       ...e,
       date: e.date.toISOString(),
@@ -204,6 +224,16 @@ export async function getPastMonthsSummary(limit: number = 12) {
     orderBy: { date: "desc" },
   });
 
+  // 3. Get all fish inventory logs to calculate true monthly buying costs
+  const allInventoryLogs = await prisma.fishInventoryLog.findMany({
+    select: {
+      date: true,
+      incomingWeight: true,
+      buyingPricePerKg: true,
+    },
+    orderBy: { date: "desc" },
+  });
+
   const monthMap = new Map<string, {
     year: number;
     month: number;
@@ -233,8 +263,29 @@ export async function getPastMonthsSummary(limit: number = 12) {
     };
 
     item.totalPosSales += Number(s.totalPosSales);
-    item.totalBuyingCost += Number(s.totalBuyingCost);
     item.daysCount += 1;
+    monthMap.set(key, item);
+  }
+
+  // Aggregate true buying costs from fishInventoryLog
+  for (const inv of allInventoryLogs) {
+    const d = new Date(inv.date);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const key = `${year}-${String(month).padStart(2, "0")}`;
+
+    const item = monthMap.get(key) || {
+      year,
+      month,
+      monthKey: key,
+      totalPosSales: 0,
+      totalBuyingCost: 0,
+      totalExpenses: 0,
+      totalNetProfit: 0,
+      daysCount: 0,
+    };
+
+    item.totalBuyingCost += Number(inv.incomingWeight) * Number(inv.buyingPricePerKg);
     monthMap.set(key, item);
   }
 
