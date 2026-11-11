@@ -17,6 +17,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Key,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -48,8 +49,13 @@ export default function ContactsClient({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState<ContactType>("SUPPLIER");
   const [isPending, startTransition] = useTransition();
-  const [form, setForm] = useState({ name: "", phone: "" });
+  const [form, setForm] = useState({ name: "", phone: "", password: "" });
   const [formError, setFormError] = useState("");
+
+  // Edit / Set Password dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ id: "", name: "", phone: "", password: "" });
+  const [editFormError, setEditFormError] = useState("");
 
   // Delete dialogs state
   const [deleteContactDialogOpen, setDeleteContactDialogOpen] = useState(false);
@@ -71,7 +77,7 @@ export default function ContactsClient({
 
   const openAddDialog = (type: ContactType) => {
     setDialogType(type);
-    setForm({ name: "", phone: "" });
+    setForm({ name: "", phone: "", password: "" });
     setFormError("");
     setDialogOpen(true);
   };
@@ -80,7 +86,12 @@ export default function ContactsClient({
     e.preventDefault();
     setFormError("");
 
-    const data = { name: form.name, phone: form.phone, type: dialogType };
+    const data = {
+      name: form.name,
+      phone: form.phone,
+      type: dialogType,
+      password: form.password,
+    };
     const validation = contactSchema.safeParse(data);
 
     if (!validation.success) {
@@ -95,8 +106,43 @@ export default function ContactsClient({
           setContacts((prev) => [...prev, result.data]);
           setDialogOpen(false);
         }
-      } catch {
-        setFormError("Failed to create contact.");
+      } catch (err: any) {
+        setFormError(err.message || "Failed to create contact.");
+      }
+    });
+  };
+
+  const openEditDialog = (contact: ContactEntry) => {
+    setEditForm({
+      id: contact.id,
+      name: contact.name,
+      phone: contact.phone || "",
+      password: "",
+    });
+    setEditFormError("");
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditFormError("");
+
+    startTransition(async () => {
+      try {
+        const { updateContact } = await import("@/lib/actions/contacts");
+        const res = await updateContact(editForm.id, {
+          name: editForm.name,
+          phone: editForm.phone,
+          password: editForm.password,
+        });
+        if (res.success) {
+          setContacts((prev) =>
+            prev.map((c) => (c.id === editForm.id ? { ...c, ...res.data } : c))
+          );
+          setEditDialogOpen(false);
+        }
+      } catch (err: any) {
+        setEditFormError(err.message || "Failed to update contact.");
       }
     });
   };
@@ -254,12 +300,19 @@ export default function ContactsClient({
                     <p className="text-sm font-semibold text-slate-800 truncate">
                       {contact.name}
                     </p>
-                    {contact.phone && (
-                      <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                        <Phone className="w-3 h-3" />
-                        {contact.phone}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      {contact.phone && (
+                        <p className="text-xs text-slate-400 flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {contact.phone}
+                        </p>
+                      )}
+                      {contact.hasPassword && (
+                        <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200/60">
+                          Portal Active
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </Link>
 
@@ -287,6 +340,17 @@ export default function ContactsClient({
                     <span className="text-xs font-medium text-emerald-500 bg-emerald-50 px-2 py-1 rounded-md">
                       Settled
                     </span>
+                  )}
+
+                  {(userRole === "MANAGER" || userRole === "SUPERVISOR") && (
+                    <button
+                      onClick={() => openEditDialog(contact)}
+                      disabled={isPending}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-all duration-200"
+                      title="Edit Contact & Portal Login"
+                    >
+                      <Key className="w-4 h-4" />
+                    </button>
                   )}
 
                   {userRole === "MANAGER" && (
@@ -628,12 +692,29 @@ export default function ContactsClient({
                 placeholder="07X XXX XXXX"
               />
             </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-600">
+                  Password
+                </label>
+                <span className="text-[10px] text-slate-400">
+                  For portal login (min 4 chars)
+                </span>
+              </div>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 transition-all"
+                placeholder="••••••••"
+              />
+            </div>
 
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setDialogOpen(false)}
-                className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <X className="w-4 h-4" />
                 Cancel
@@ -641,7 +722,7 @@ export default function ContactsClient({
               <button
                 type="submit"
                 disabled={isPending}
-                className={`flex-1 py-2.5 rounded-lg text-white text-sm font-semibold shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 ${
+                className={`flex-1 py-2.5 rounded-lg text-white text-sm font-semibold shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer ${
                   dialogType === "SUPPLIER"
                     ? "bg-gradient-to-r from-cyan-500 to-teal-500 shadow-cyan-500/20 hover:shadow-cyan-500/40"
                     : "bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/20 hover:shadow-amber-500/40"
@@ -655,6 +736,94 @@ export default function ContactsClient({
                     Add{" "}
                     {dialogType === "SUPPLIER" ? "Supplier" : "Buyer"}
                   </>
+                )}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Contact & Password Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Key className="w-5 h-5 text-sky-500" />
+              Edit Contact & Portal Login
+            </DialogTitle>
+          </DialogHeader>
+
+          {editFormError && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+              {editFormError}
+            </div>
+          )}
+
+          <form onSubmit={handleUpdate} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                Name *
+              </label>
+              <input
+                type="text"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 transition-all"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                Phone Number (Used for Login)
+              </label>
+              <input
+                type="tel"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.value = input.value.replace(/[^0-9+\-\s()]/g, "");
+                }}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 transition-all"
+                placeholder="07X XXX XXXX"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-600">
+                  New Portal Password
+                </label>
+                <span className="text-[10px] text-slate-400">
+                  Leave blank to keep existing
+                </span>
+              </div>
+              <input
+                type="password"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 transition-all"
+                placeholder="Enter new password (min 4 chars)"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditDialogOpen(false)}
+                className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isPending}
+                className="flex-1 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                {isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Save Changes"
                 )}
               </button>
             </div>

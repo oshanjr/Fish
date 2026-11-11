@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { contactSchema, contactUpdateSchema, contactTransactionSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import bcrypt from "bcryptjs";
 
 export async function getAllContacts(type?: "SUPPLIER" | "BUYER") {
   const contacts = await prisma.contact.findMany({
@@ -14,6 +15,7 @@ export async function getAllContacts(type?: "SUPPLIER" | "BUYER") {
   return contacts.map((c) => ({
     ...c,
     totalBalance: Number(c.totalBalance),
+    hasPassword: Boolean(c.passwordHash),
   }));
 }
 
@@ -34,6 +36,7 @@ export async function getContactById(id: string) {
   return {
     ...contact,
     totalBalance: Number(contact.totalBalance),
+    hasPassword: Boolean(contact.passwordHash),
     transactions: contact.transactions.map((t) => ({
       ...t,
       date: t.date.toISOString(),
@@ -46,13 +49,20 @@ export async function createContact(data: {
   name: string;
   phone?: string;
   type: "SUPPLIER" | "BUYER";
+  password?: string;
 }) {
   const validated = contactSchema.parse(data);
+
+  let passwordHash: string | null = null;
+  if (validated.password && validated.password.trim() !== "") {
+    passwordHash = await bcrypt.hash(validated.password, 10);
+  }
 
   const contact = await prisma.contact.create({
     data: {
       name: validated.name,
       phone: validated.phone || null,
+      passwordHash,
       type: validated.type,
       totalBalance: 0,
     },
@@ -61,30 +71,65 @@ export async function createContact(data: {
   revalidatePath("/dashboard/contacts");
   return {
     success: true,
-    data: { ...contact, totalBalance: Number(contact.totalBalance) },
+    data: {
+      ...contact,
+      totalBalance: Number(contact.totalBalance),
+      hasPassword: Boolean(contact.passwordHash),
+    },
   };
 }
 
 export async function updateContact(
   id: string,
-  data: { name: string; phone?: string }
+  data: { name: string; phone?: string; password?: string }
 ) {
   const validated = contactUpdateSchema.parse(data);
 
+  const updateData: any = {
+    name: validated.name,
+    phone: validated.phone || null,
+  };
+
+  if (validated.password && validated.password.trim() !== "") {
+    updateData.passwordHash = await bcrypt.hash(validated.password, 10);
+  }
+
   const contact = await prisma.contact.update({
     where: { id },
-    data: {
-      name: validated.name,
-      phone: validated.phone || null,
-    },
+    data: updateData,
   });
 
   revalidatePath("/dashboard/contacts");
   revalidatePath(`/dashboard/contacts/${id}`);
   return {
     success: true,
-    data: { ...contact, totalBalance: Number(contact.totalBalance) },
+    data: {
+      ...contact,
+      totalBalance: Number(contact.totalBalance),
+      hasPassword: Boolean(contact.passwordHash),
+    },
   };
+}
+
+export async function updateContactPassword(id: string, newPassword: string) {
+  const session = await auth();
+  if (session?.user?.role !== "MANAGER" && session?.user?.role !== "SUPERVISOR") {
+    throw new Error("Unauthorized");
+  }
+
+  if (!newPassword || newPassword.length < 4) {
+    throw new Error("Password must be at least 4 characters");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await prisma.contact.update({
+    where: { id },
+    data: { passwordHash },
+  });
+
+  revalidatePath("/dashboard/contacts");
+  revalidatePath(`/dashboard/contacts/${id}`);
+  return { success: true };
 }
 
 export async function deleteContact(id: string) {

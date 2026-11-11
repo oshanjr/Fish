@@ -32,6 +32,13 @@ export default auth((req: NextRequest & { auth: { user: { role: string } } | nul
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
+    // Restrict portal-only roles (employees, suppliers, buyers) to their dashboard
+    const userRole = session.user?.role;
+    const isPortalOnly = userRole === "EMPLOYEE" || userRole === "SUPPLIER" || userRole === "BUYER";
+    if (isPortalOnly && pathname !== "/dashboard") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
     // Check manager-only routes
     const isManagerRoute = managerOnlyRoutes.some((route) =>
       pathname.startsWith(route)

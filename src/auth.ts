@@ -59,22 +59,54 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             role: user.role as UserRole,
           };
         } else {
-          // Employee login by phone
-          const employee = await prisma.employee.findUnique({
-            where: { phone: identifier },
+          const rawIdentifier = identifier.trim();
+          const cleanPhone = rawIdentifier.replace(/[\s\-()]/g, "");
+
+          // 1. Employee login by phone
+          const employee = await prisma.employee.findFirst({
+            where: {
+              OR: [
+                { phone: rawIdentifier },
+                { phone: cleanPhone },
+              ],
+            },
           });
 
-          if (!employee || !employee.passwordHash) return null;
+          if (employee && employee.passwordHash) {
+            const isPasswordValid = await bcrypt.compare(password, employee.passwordHash);
+            if (isPasswordValid) {
+              return {
+                id: employee.id,
+                name: employee.name,
+                email: employee.phone || "",
+                role: "EMPLOYEE" as UserRole,
+              };
+            }
+          }
 
-          const isPasswordValid = await bcrypt.compare(password, employee.passwordHash);
-          if (!isPasswordValid) return null;
+          // 2. Seller / Buyer (Contact) login by phone
+          const contact = await prisma.contact.findFirst({
+            where: {
+              OR: [
+                { phone: rawIdentifier },
+                { phone: cleanPhone },
+              ],
+            },
+          });
 
-          return {
-            id: employee.id,
-            name: employee.name,
-            email: employee.phone || "",
-            role: "EMPLOYEE" as UserRole,
-          };
+          if (contact && contact.passwordHash) {
+            const isPasswordValid = await bcrypt.compare(password, contact.passwordHash);
+            if (isPasswordValid) {
+              return {
+                id: contact.id,
+                name: contact.name,
+                email: contact.phone || "",
+                role: contact.type as UserRole, // "SUPPLIER" or "BUYER"
+              };
+            }
+          }
+
+          return null;
         }
       },
     }),

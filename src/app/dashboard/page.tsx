@@ -3,10 +3,47 @@ import type { UserRole } from "@/types";
 import { prisma } from "@/lib/prisma";
 import EmployeeDashboardClient from "./employee-dashboard-client";
 import ManagerDashboardClient from "./manager-dashboard-client";
+import ContactDashboardClient from "./contact-dashboard-client";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
   const session = await auth();
   const role = (session?.user?.role ?? "SUPERVISOR") as UserRole;
+
+  // Portal view for Suppliers (Sellers) and Buyers
+  if (role === "SUPPLIER" || role === "BUYER") {
+    const contactId = session?.user?.id;
+    if (!contactId) redirect("/login");
+
+    const contact = await prisma.contact.findUnique({
+      where: { id: contactId },
+      include: {
+        transactions: {
+          orderBy: { date: "desc" },
+        },
+      },
+    });
+
+    if (!contact) redirect("/login");
+
+    return (
+      <ContactDashboardClient
+        contact={{
+          id: contact.id,
+          name: contact.name,
+          phone: contact.phone,
+          type: contact.type,
+          totalBalance: Number(contact.totalBalance),
+          transactions: contact.transactions.map((t) => ({
+            id: t.id,
+            date: t.date.toISOString(),
+            description: t.description,
+            amount: Number(t.amount),
+          })),
+        }}
+      />
+    );
+  }
 
   if (role === "EMPLOYEE") {
     const employeeId = session?.user?.id;

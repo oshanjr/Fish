@@ -1,6 +1,6 @@
 // Type definitions for Fish Store Management System
 
-export type UserRole = "MANAGER" | "SUPERVISOR" | "EMPLOYEE";
+export type UserRole = "MANAGER" | "SUPERVISOR" | "EMPLOYEE" | "SUPPLIER" | "BUYER";
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "HALF_DAY";
 export type ContactType = "SUPPLIER" | "BUYER";
 
@@ -66,6 +66,7 @@ export interface ContactEntry {
   phone: string | null;
   type: ContactType;
   totalBalance: number;
+  hasPassword?: boolean;
 }
 
 export interface ContactTransactionEntry {

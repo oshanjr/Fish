@@ -161,6 +161,7 @@ model Contact {
   id           String               @id @default(cuid())
   name         String
   phone        String?
+  passwordHash String?
   type         ContactType
   totalBalance Decimal              @default(0) @db.Decimal(12, 2)
   createdAt    DateTime             @default(now())

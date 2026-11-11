@@ -18,7 +18,7 @@ export default function DashboardShell({
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {user.role !== "EMPLOYEE" && (
+      {user.role !== "EMPLOYEE" && user.role !== "SUPPLIER" && user.role !== "BUYER" && (
         <Sidebar
           userRole={user.role}
           isOpen={sidebarOpen}

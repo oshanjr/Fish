@@ -149,12 +149,22 @@ export const contactSchema = z.object({
   name: nameValidator("Name"),
   phone: phoneValidator,
   type: z.enum(["SUPPLIER", "BUYER"]),
+  password: z
+    .string()
+    .min(4, "Password must be at least 4 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 // Contact update validation (no type field needed)
 export const contactUpdateSchema = z.object({
   name: nameValidator("Name"),
   phone: phoneValidator,
+  password: z
+    .string()
+    .min(4, "Password must be at least 4 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 // Contact transaction validation
