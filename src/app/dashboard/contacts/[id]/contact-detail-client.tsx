@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import {
   ArrowLeft,
   Phone,
@@ -15,6 +15,10 @@ import {
   Receipt,
   Calculator,
   AlertTriangle,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { addTransaction, deleteTransaction } from "@/lib/actions/contacts";
@@ -308,8 +312,11 @@ export default function ContactDetailClient({
     });
   };
 
-  // Compute running balance for display (oldest first)
-  const transactionsWithBalance = (() => {
+  // Month filter state ("YYYY-MM" or "" for all months)
+  const [filterMonth, setFilterMonth] = useState<string>("");
+
+  // Compute running balance for display (oldest first across all transactions)
+  const transactionsWithBalance = useMemo(() => {
     const sorted = [...contact.transactions].reverse();
     let running = 0;
     const result = sorted.map((t) => {
@@ -317,7 +324,53 @@ export default function ContactDetailClient({
       return { ...t, runningBalance: running };
     });
     return result.reverse();
-  })();
+  }, [contact.transactions]);
+
+  // Filtered transactions for the selected month
+  const displayedTransactions = useMemo(() => {
+    if (!filterMonth) return transactionsWithBalance;
+    return transactionsWithBalance.filter((tx) => {
+      const d = new Date(tx.date);
+      const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      return mStr === filterMonth;
+    });
+  }, [transactionsWithBalance, filterMonth]);
+
+  // Summary statistics for the filtered month
+  const monthStats = useMemo(() => {
+    if (!filterMonth) return null;
+    const credits = displayedTransactions
+      .filter((t) => t.amount > 0)
+      .reduce((sum, t) => sum + t.amount, 0);
+    const payments = displayedTransactions
+      .filter((t) => t.amount < 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const net = credits - payments;
+    return { credits, payments, net };
+  }, [displayedTransactions, filterMonth]);
+
+  const handlePrevMonth = () => {
+    if (!filterMonth) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+      return;
+    }
+    const [y, m] = filterMonth.split("-").map(Number);
+    const d = new Date(y, m - 2, 1);
+    setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+
+  const handleNextMonth = () => {
+    if (!filterMonth) {
+      const d = new Date();
+      setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+      return;
+    }
+    const [y, m] = filterMonth.split("-").map(Number);
+    const d = new Date(y, m, 1);
+    setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -686,12 +739,109 @@ export default function ContactDetailClient({
         {/* Transaction History */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-slate-400" />
-                Transaction History
-              </h2>
+                <h2 className="text-sm font-semibold text-slate-700">
+                  Transaction History
+                </h2>
+                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+                  {filterMonth
+                    ? `${displayedTransactions.length} of ${transactionsWithBalance.length}`
+                    : transactionsWithBalance.length}
+                </span>
+              </div>
+
+              {/* Month Picker / Filter */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                  title="Previous Month"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg px-2.5 py-1 transition-colors">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type="month"
+                    value={filterMonth}
+                    onChange={(e) => setFilterMonth(e.target.value)}
+                    className="bg-transparent border-none outline-none text-xs font-medium text-slate-700 cursor-pointer"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                  title="Next Month"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterMonth("")}
+                  className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${
+                    !filterMonth
+                      ? "bg-slate-800 text-white border-slate-800"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  All
+                </button>
+
+                {filterMonth && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterMonth("")}
+                    className="text-xs text-slate-400 hover:text-rose-500 p-1 transition-colors cursor-pointer"
+                    title="Clear filter"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Filter Summary Banner */}
+            {filterMonth && monthStats && (
+              <div className="bg-slate-50/70 px-5 py-2.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
+                <span className="text-slate-500 font-medium">
+                  Summary for{" "}
+                  <strong className="text-slate-700">
+                    {new Date(`${filterMonth}-02`).toLocaleDateString("en-LK", {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </strong>
+                  :
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-rose-600 font-semibold">
+                    Credits: +{monthStats.credits.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-emerald-600 font-semibold">
+                    Payments: -{monthStats.payments.toLocaleString("en-LK", { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-slate-300">|</span>
+                  <span
+                    className={
+                      monthStats.net >= 0
+                        ? "text-slate-700 font-semibold"
+                        : "text-emerald-700 font-semibold"
+                    }
+                  >
+                    Net: {monthStats.net >= 0 ? "+" : ""}
+                    {monthStats.net.toLocaleString("en-LK", { minimumFractionDigits: 2 })} LKR
+                  </span>
+                </div>
+              </div>
+            )}
 
             {transactionsWithBalance.length === 0 ? (
               <div className="p-8 text-center">
@@ -699,6 +849,25 @@ export default function ContactDetailClient({
                 <p className="text-sm text-slate-400">
                   No transactions yet. Add a credit or payment to get started.
                 </p>
+              </div>
+            ) : displayedTransactions.length === 0 ? (
+              <div className="p-8 text-center">
+                <Calendar className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-sm text-slate-600 font-medium">
+                  No transactions recorded for{" "}
+                  {new Date(`${filterMonth}-02`).toLocaleDateString("en-LK", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setFilterMonth("")}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Show all transactions ({transactionsWithBalance.length})
+                </button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -723,7 +892,7 @@ export default function ContactDetailClient({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {transactionsWithBalance.map((tx) => (
+                    {displayedTransactions.map((tx) => (
                       <tr
                         key={tx.id}
                         className="hover:bg-slate-50/50 transition-colors group"
