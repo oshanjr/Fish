@@ -197,6 +197,7 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
         earnedPay: Math.round(earnedPay * 100) / 100,
         advancesTaken: Math.round(empAdvances * 100) / 100,
         finalPayout: Math.round(finalPayout * 100) / 100,
+        dates: empAttendance.map((a) => a.date.toISOString().split("T")[0]),
       };
     })
     .filter((emp) => emp.isActive || emp.presentDays > 0 || emp.advancesTaken > 0);

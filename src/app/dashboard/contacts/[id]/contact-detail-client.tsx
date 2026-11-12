@@ -20,6 +20,7 @@ import {
   ChevronRight,
   X,
   Key,
+  Download,
 } from "lucide-react";
 import Link from "next/link";
 import { addTransaction, deleteTransaction } from "@/lib/actions/contacts";
@@ -433,6 +434,116 @@ export default function ContactDetailClient({
   const handleClear = () => {
     setFilterMonth("");
     setFilterDate("");
+  };
+
+  const handleDownloadPdfStatement = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow popups to download statement as PDF.");
+      return;
+    }
+
+    const fmt = (n: number) =>
+      Number(n || 0).toLocaleString("en-LK", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+    const periodLabel =
+      filterMode === "date" && filterDate
+        ? new Date(filterDate).toLocaleDateString("en-LK", { dateStyle: "long" })
+        : filterMode === "month" && filterMonth
+        ? new Date(`${filterMonth}-02`).toLocaleDateString("en-LK", {
+            month: "long",
+            year: "numeric",
+          })
+        : "Complete All-Time Statement";
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${contact.name} - Statement - Arthur & Sons Seafood Center</title>
+  <style>
+    @page { size: A4 portrait; margin: 14mm 15mm; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; margin: 0; padding: 0; font-size: 11px; }
+    .header { border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 14px; display: flex; justify-content: space-between; }
+    .brand-title { font-size: 18px; font-weight: 800; text-transform: uppercase; margin: 0 0 2px 0; }
+    .brand-subtitle { font-size: 11px; color: #64748b; margin: 0; }
+    .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .info-card { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; background: #f8fafc; }
+    .info-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 2px; }
+    .info-val { font-size: 13px; font-weight: 800; color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    th { background: #f1f5f9; color: #334155; font-size: 9.5px; font-weight: 700; text-transform: uppercase; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; }
+    td { padding: 6px 8px; border: 1px solid #e2e8f0; font-size: 10.5px; }
+    .text-right { text-align: right; }
+    .print-banner { background: #0284c7; color: #fff; padding: 10px; margin-bottom: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .print-btn { background: #fff; color: #0284c7; border: none; padding: 5px 12px; border-radius: 4px; font-weight: 700; cursor: pointer; }
+    @media print { .print-banner { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="print-banner">
+    <span>Ready to download as PDF. Destination: "Save as PDF".</span>
+    <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+  <div class="header">
+    <div>
+      <h1 class="brand-title">Arthur &amp; Sons Seafood Center</h1>
+      <p class="brand-subtitle">${isSupplier ? "Supplier" : "Buyer"} Account Statement &bull; ${contact.name}</p>
+    </div>
+    <div style="text-align: right;">
+      <div style="font-weight: 700; font-size: 12px;">${periodLabel}</div>
+      <p style="font-size: 10px; color: #64748b; margin: 2px 0 0 0;">Generated: ${new Date().toLocaleString("en-LK")}</p>
+    </div>
+  </div>
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="info-label">${isSupplier ? "Total Goods Supplied" : "Total Purchases"}</div>
+      <div class="info-val">LKR ${fmt(totalCredit)}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">Total Settlements</div>
+      <div class="info-val">LKR ${fmt(totalPaid)}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">${isSupplier ? "Store Owes You" : "Outstanding Balance"}</div>
+      <div class="info-val" style="color: ${contact.totalBalance > 0 ? (isSupplier ? '#059669' : '#dc2626') : '#0f172a'};">
+        LKR ${fmt(contact.totalBalance)}
+      </div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 18%;">Date</th>
+        <th style="width: 46%;">Description</th>
+        <th class="text-right" style="width: 18%;">Amount (LKR)</th>
+        <th class="text-right" style="width: 18%;">Balance (LKR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${displayedTransactions.map((tx) => `<tr>
+        <td>${new Date(tx.date).toLocaleDateString("en-LK", { dateStyle: "medium" })}</td>
+        <td style="font-weight: 500;">${tx.description}</td>
+        <td class="text-right" style="font-weight: 600; color: ${tx.amount > 0 ? '#dc2626' : '#059669'};">
+          ${tx.amount > 0 ? '+' : ''}${fmt(tx.amount)}
+        </td>
+        <td class="text-right" style="font-weight: 700;">${fmt(tx.runningBalance)}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>
+  <script>
+    window.onload = function() { setTimeout(function() { window.print(); }, 350); };
+  </script>
+</body>
+</html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   return (
@@ -945,6 +1056,17 @@ export default function ContactDetailClient({
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
+
+                {/* Download Statement PDF */}
+                <button
+                  type="button"
+                  onClick={handleDownloadPdfStatement}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-2xs transition-colors cursor-pointer ml-1"
+                  title="Download filtered statement as PDF"
+                >
+                  <Download className="w-3 h-3 text-slate-300" />
+                  <span>PDF</span>
+                </button>
               </div>
             </div>
 
