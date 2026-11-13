@@ -1631,12 +1631,21 @@ export default function ReportsClient({
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="px-4 py-3 text-slate-800 font-semibold">
-                        {new Date(`${dStr}T12:00:00`).toLocaleDateString("en-LK", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
+                        <div className="flex items-center gap-2">
+                          <span>
+                            {new Date(`${dStr}T12:00:00`).toLocaleDateString("en-LK", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                          {d.isClosed === false && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                              POS Pending
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-slate-700">
                         LKR {Number(d.totalPosSales || 0).toLocaleString("en-LK", { minimumFractionDigits: 2 })}

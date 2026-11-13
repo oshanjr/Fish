@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 
 export async function getMonthlyFinancials(year: number, month: number) {
   // month is 1-indexed (1 = Jan, 12 = Dec)
-  const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-  const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+  // Use UTC boundaries because @db.Date columns store calendar dates at UTC midnight
+  const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
   // 1. Get Daily Store Summaries for the month
   const summaries = await prisma.dailyStoreSummary.findMany({
@@ -45,23 +46,63 @@ export async function getMonthlyFinancials(year: number, month: number) {
   const totalPosSales = summaries.reduce((sum, s) => sum + Number(s.totalPosSales), 0);
 
   // Total Buying Cost: sum all fish inventory logs for the month
-  // This accurately captures intake even if it was logged retroactively after a day summary was closed
   const totalBuyingCost = inventoryLogs.reduce(
     (sum, log) => sum + Number(log.incomingWeight) * Number(log.buyingPricePerKg),
     0
   );
   
-  // Total Expenses: sum all detailed expenses for the month to match the breakdown table exactly
+  // Total Expenses: sum all detailed expenses for the month
   const totalExpenses = detailedExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const totalNetProfit = totalPosSales - totalBuyingCost - totalExpenses;
 
-  // Build a map of daily inventory buying costs so daily summary rows also reflect true intake
+  // Build maps of daily buying costs & daily expenses from source-of-truth tables
   const dailyInventoryCostMap = new Map<string, number>();
   for (const log of inventoryLogs) {
     const key = log.date.toISOString().split("T")[0];
     const cost = Number(log.incomingWeight) * Number(log.buyingPricePerKg);
     dailyInventoryCostMap.set(key, (dailyInventoryCostMap.get(key) || 0) + cost);
   }
+
+  const dailyExpenseMap = new Map<string, number>();
+  for (const exp of detailedExpenses) {
+    const key = exp.date.toISOString().split("T")[0];
+    dailyExpenseMap.set(key, (dailyExpenseMap.get(key) || 0) + Number(exp.amount));
+  }
+
+  // Merge all active dates (from summaries, inventoryLogs, and detailedExpenses)
+  // so Daily/Weekly/Monthly totals always reconcile to the exact cent.
+  const summaryByDate = new Map(
+    summaries.map((s) => [s.date.toISOString().split("T")[0], s])
+  );
+  const allDates = Array.from(
+    new Set([
+      ...summaryByDate.keys(),
+      ...dailyInventoryCostMap.keys(),
+      ...dailyExpenseMap.keys(),
+    ])
+  ).sort();
+
+  const mergedSummaries = allDates.map((key) => {
+    const s = summaryByDate.get(key);
+    const posSales = s ? Number(s.totalPosSales) : 0;
+    const cashSales = s ? Number(s.cashSales) : 0;
+    const cardSales = s ? Number(s.cardSales) : 0;
+    const buyingCost = Math.round((dailyInventoryCostMap.get(key) || 0) * 100) / 100;
+    const expenses = Math.round((dailyExpenseMap.get(key) || 0) * 100) / 100;
+
+    return {
+      id: s ? s.id : `unclosed-${key}`,
+      date: `${key}T00:00:00.000Z`,
+      totalPosSales: Math.round(posSales * 100) / 100,
+      cashSales: Math.round(cashSales * 100) / 100,
+      cardSales: Math.round(cardSales * 100) / 100,
+      totalBuyingCost: buyingCost,
+      calculatedExpenses: expenses,
+      calculatedWastageCost: s ? Number(s.calculatedWastageCost) : 0,
+      netProfit: Math.round((posSales - buyingCost - expenses) * 100) / 100,
+      isClosed: Boolean(s),
+    };
+  });
 
   return {
     totals: {
@@ -70,24 +111,7 @@ export async function getMonthlyFinancials(year: number, month: number) {
       totalExpenses: Math.round(totalExpenses * 100) / 100,
       totalNetProfit: Math.round(totalNetProfit * 100) / 100,
     },
-    summaries: summaries.map(s => {
-      const key = s.date.toISOString().split("T")[0];
-      const directCost = dailyInventoryCostMap.get(key);
-      const buyingCost = directCost !== undefined && directCost > 0 ? directCost : Number(s.totalBuyingCost);
-      const posSales = Number(s.totalPosSales);
-      const expenses = Number(s.calculatedExpenses);
-      return {
-        ...s,
-        date: s.date.toISOString(),
-        totalPosSales: posSales,
-        cashSales: Number(s.cashSales),
-        cardSales: Number(s.cardSales),
-        totalBuyingCost: Math.round(buyingCost * 100) / 100,
-        calculatedExpenses: expenses,
-        calculatedWastageCost: Number(s.calculatedWastageCost),
-        netProfit: Math.round((posSales - buyingCost - expenses) * 100) / 100,
-      };
-    }),
+    summaries: mergedSummaries,
     detailedExpenses: detailedExpenses.map(e => ({
       ...e,
       date: e.date.toISOString(),
@@ -98,8 +122,8 @@ export async function getMonthlyFinancials(year: number, month: number) {
 }
 
 export async function getMonthlyAttendanceAndPayroll(year: number, month: number) {
-  const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-  const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+  const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
   // 1. Get employees (including inactive employees who may have worked in past months)
   const allEmployees = await prisma.employee.findMany({
@@ -151,7 +175,7 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
       const presentDays = empAttendance.length;
       
       // Count Sunday present days for Sunday payment
-      const sundayPresentDays = empAttendance.filter((a) => new Date(a.date).getDay() === 0).length;
+      const sundayPresentDays = empAttendance.filter((a) => new Date(a.date).getUTCDay() === 0).length;
 
       const baseSal = Number(emp.baseSalary);
       const sundayPay = Number(emp.sundayPayment);
@@ -164,7 +188,7 @@ export async function getMonthlyAttendanceAndPayroll(year: number, month: number
           return sum + Number(a.earnedPay);
         }
         const hours = a.hoursWorked ? Number(a.hoursWorked) : (a.status === "HALF_DAY" ? 6 : 12);
-        const isSunday = new Date(a.date).getDay() === 0;
+        const isSunday = new Date(a.date).getUTCDay() === 0;
         if (isSunday && hours > 0) {
           return sum + sundayPay;
         }
@@ -248,8 +272,8 @@ export async function getPastMonthsSummary(limit: number = 12) {
 
   for (const s of summaries) {
     const d = new Date(s.date);
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth() + 1;
     const key = `${year}-${String(month).padStart(2, "0")}`;
 
     const item = monthMap.get(key) || {
@@ -271,8 +295,8 @@ export async function getPastMonthsSummary(limit: number = 12) {
   // Aggregate true buying costs from fishInventoryLog
   for (const inv of allInventoryLogs) {
     const d = new Date(inv.date);
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth() + 1;
     const key = `${year}-${String(month).padStart(2, "0")}`;
 
     const item = monthMap.get(key) || {
@@ -293,8 +317,8 @@ export async function getPastMonthsSummary(limit: number = 12) {
   // Aggregate actual monthly expenses from dailyExpense for full consistency with getMonthlyFinancials
   for (const e of expenses) {
     const d = new Date(e.date);
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth() + 1;
     const key = `${year}-${String(month).padStart(2, "0")}`;
 
     const item = monthMap.get(key) || {
